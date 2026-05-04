@@ -3,7 +3,7 @@
 /**
  * Base da API REST — por defeito **`/api-ext`** (mesmo origin que o frontend na Vercel).
  * Assim o browser não faz pedido cross-origin → não há bloqueio CORS nem páginas 502 do Traefik sem cabeçalhos CORS.
- * O Next.js faz rewrite para `BACKEND_PROXY_TARGET` (ver `next.config.ts`).
+ * O Next faz proxy em `app/api-ext/[[...path]]/route.ts` → `BACKEND_PROXY_TARGET`.
  *
  * Só uses URL absoluta se configurares CORS no Express para esse origin:
  * `NEXT_PUBLIC_API_BASE=https://api-call...`

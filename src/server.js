@@ -45,6 +45,13 @@ import { getBotConfig, updateBotConfig } from "./db/botConfig.js";
 
 const PORT = process.env.PORT ?? 3000;
 
+process.on("unhandledRejection", (reason) => {
+  console.error("[unhandledRejection]", reason);
+});
+process.on("uncaughtException", (err) => {
+  console.error("[uncaughtException]", err);
+});
+
 const app = express();
 
 // ─── CORS (REST + preflight) ────────────────────────────────────────────────
@@ -429,6 +436,14 @@ wss.on("connection", (twilioWs) => {
   }
 
   async function handleGeminiMessage(geminiMsg) {
+    try {
+      await handleGeminiMessageInner(geminiMsg);
+    } catch (e) {
+      console.error("[Gemini] handleGeminiMessage", e);
+    }
+  }
+
+  async function handleGeminiMessageInner(geminiMsg) {
     if (geminiMsg.serverContent?.modelTurn?.parts) {
       for (const part of geminiMsg.serverContent.modelTurn.parts) {
         if (part.inlineData?.data) {
@@ -508,60 +523,76 @@ wss.on("connection", (twilioWs) => {
 
   twilioWs.on("message", async (raw) => {
     let msg;
-    try { msg = JSON.parse(raw.toString()); } catch { return; }
+    try {
+      try {
+        msg = JSON.parse(raw.toString());
+      } catch {
+        return;
+      }
 
-    switch (msg.event) {
+      switch (msg.event) {
       case "connected":
         console.log("[WS] connected");
         break;
 
       case "start": {
-        streamSid = msg.start.streamSid;
-        callSid = msg.start.callSid;
-        leadId = msg.start.customParameters?.leadId;
-        wsAgentId = null;
-        webhookSaidaUrl = null;
-        console.log(`[WS] start — callSid=${callSid} leadId=${leadId}`);
-
-        const lead = leadId ? await getLeadById(leadId) : null;
-        wsAgentId = lead?.agent_id ?? null;
-        const agentRow = wsAgentId ? await getAgentById(wsAgentId) : null;
-        webhookSaidaUrl = agentRow?.webhook_saida_url ?? null;
-
-        botConfig = await getEffectiveAgentConfig(agentRow);
-
-        const systemPrompt = buildPromptForLead(lead ?? { nome: "cliente" }, botConfig);
-
         try {
-          geminiSession = await createLiveSession({
-            systemPrompt,
-            model: botConfig.modelo_gemini,
-            voice: botConfig.voz,
-            onMessage: handleGeminiMessage,
-            onError: (e) => console.error("[Gemini] error", e),
-            onClose: (e) => console.log("[Gemini] closed", e?.reason ?? ""),
-          });
-          console.log("[Gemini] Sessão aberta");
+          streamSid = msg.start.streamSid;
+          callSid = msg.start.callSid;
+          leadId = msg.start.customParameters?.leadId;
+          wsAgentId = null;
+          webhookSaidaUrl = null;
+          console.log(`[WS] start — callSid=${callSid} leadId=${leadId}`);
 
-          if (botConfig.quem_fala_primeiro === "agente") {
-            setTimeout(() => {
-              geminiSession?.sendClientContent({
-                turns: [{ role: "user", parts: [{ text: "A chamada foi atendida. Inicie a conversa agora." }] }],
-                turnComplete: true,
-              });
-            }, 500);
-          }
+          const lead = leadId ? await getLeadById(leadId) : null;
+          wsAgentId = lead?.agent_id ?? null;
+          const agentRow = wsAgentId ? await getAgentById(wsAgentId) : null;
+          webhookSaidaUrl = agentRow?.webhook_saida_url ?? null;
 
-          const timeout = (botConfig.timeout_segundos ?? 120) * 1000;
-          setTimeout(() => {
-            if (geminiSession) {
-              console.log(`[WS] Timeout de ${botConfig.timeout_segundos}s atingido`);
-              geminiSession.close();
+          botConfig = await getEffectiveAgentConfig(agentRow);
+
+          const systemPrompt = buildPromptForLead(lead ?? { nome: "cliente" }, botConfig);
+
+          try {
+            geminiSession = await createLiveSession({
+              systemPrompt,
+              model: botConfig.modelo_gemini,
+              voice: botConfig.voz,
+              onMessage: handleGeminiMessage,
+              onError: (e) => console.error("[Gemini] error", e),
+              onClose: (e) => console.log("[Gemini] closed", e?.reason ?? ""),
+            });
+            console.log("[Gemini] Sessão aberta");
+
+            if (botConfig.quem_fala_primeiro === "agente") {
+              setTimeout(() => {
+                try {
+                  geminiSession?.sendClientContent({
+                    turns: [{ role: "user", parts: [{ text: "A chamada foi atendida. Inicie a conversa agora." }] }],
+                    turnComplete: true,
+                  });
+                } catch (e) {
+                  console.error("[WS] sendClientContent", e);
+                }
+              }, 500);
             }
-          }, timeout);
 
+            const timeout = (botConfig.timeout_segundos ?? 120) * 1000;
+            setTimeout(() => {
+              try {
+                if (geminiSession) {
+                  console.log(`[WS] Timeout de ${botConfig.timeout_segundos}s atingido`);
+                  geminiSession.close();
+                }
+              } catch (e) {
+                console.error("[WS] timeout close", e);
+              }
+            }, timeout);
+          } catch (err) {
+            console.error("[Gemini] Falha ao abrir sessão", err);
+          }
         } catch (err) {
-          console.error("[Gemini] Falha ao abrir sessão", err);
+          console.error("[WS] Erro no evento start (lead/agent/prompt)", err);
         }
         break;
       }
@@ -586,6 +617,9 @@ wss.on("connection", (twilioWs) => {
         geminiSession?.close();
         geminiSession = null;
         break;
+      }
+    } catch (err) {
+      console.error("[WS] Erro ao processar mensagem", err);
     }
   });
 
