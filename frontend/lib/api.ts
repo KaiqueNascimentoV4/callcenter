@@ -1,19 +1,16 @@
-/** No browser: mesmo domínio via rewrite (/api-ext → API), evita CORS. No servidor: URL direta (sem CORS). */
-function getBaseUrl(): string {
-  if (typeof window !== "undefined") {
-    return "/api-ext";
-  }
-  return (
-    process.env.API_URL ??
-    process.env.NEXT_PUBLIC_API_URL ??
-    "http://127.0.0.1:3000"
-  );
-}
+"use client";
+
+/** Sempre relativo ao domínio do Next → rewrite em `next.config.ts` (/api-ext → API). Nunca usar URL absoluta aqui (evita CORS e env embutido no bundle). */
+const API_BASE = "/api-ext";
 
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${getBaseUrl()}${path}`, {
-    headers: { "Content-Type": "application/json" },
+  const headers: HeadersInit = {
+    ...(init?.body ? { "Content-Type": "application/json" } : {}),
+    ...init?.headers,
+  };
+  const res = await fetch(`${API_BASE}${path}`, {
     ...init,
+    headers,
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }));
