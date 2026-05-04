@@ -5,6 +5,14 @@ services:
     image: ghcr.io/kaiquenascimentov4/callcenter:latest
     networks:
       - portainer
+      
+    # 👇 ADICIONE ESTA PARTE AQUI 👇
+    environment:
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+    # 👆 ======================= 👆
+
     deploy:
       replicas: 1
       restart_policy:
