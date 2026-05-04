@@ -1,4 +1,5 @@
 import "dotenv/config";
+import "./ws-polyfill.js";
 import express from "express";
 import cors from "cors"; // 👈 Biblioteca importada aqui
 import { createServer } from "http";
