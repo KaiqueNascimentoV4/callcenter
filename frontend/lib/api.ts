@@ -1,7 +1,17 @@
-const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
+/** No browser: mesmo domínio via rewrite (/api-ext → API), evita CORS. No servidor: URL direta (sem CORS). */
+function getBaseUrl(): string {
+  if (typeof window !== "undefined") {
+    return "/api-ext";
+  }
+  return (
+    process.env.API_URL ??
+    process.env.NEXT_PUBLIC_API_URL ??
+    "http://127.0.0.1:3000"
+  );
+}
 
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
+  const res = await fetch(`${getBaseUrl()}${path}`, {
     headers: { "Content-Type": "application/json" },
     ...init,
   });
