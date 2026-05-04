@@ -1,5 +1,6 @@
 import "dotenv/config";
 import express from "express";
+import cors from "cors"; // 👈 Biblioteca importada aqui
 import { createServer } from "http";
 import { WebSocketServer } from "ws";
 import twilio from "twilio";
@@ -25,15 +26,16 @@ import { getBotConfig, updateBotConfig } from "./db/botConfig.js";
 const PORT = process.env.PORT ?? 3000;
 
 const app = express();
+
+// ─── Configuração do CORS (Oficial) ─────────────────────────────────────────
+app.use(cors({
+  origin: "*", // Dica: para travar apenas pro seu front, troque "*" por "https://call.v4companyamaral.com"
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization", "apikey", "x-client-info"]
+}));
+
 app.use(express.urlencoded({ extended: false }));
 app.use(express.json());
-app.use((_req, res, next) => {
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
-  res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
-  if (_req.method === "OPTIONS") return res.sendStatus(204);
-  next();
-});
 
 // ─── Twilio signature validation ────────────────────────────────────────────
 
