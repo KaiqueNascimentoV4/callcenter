@@ -224,7 +224,7 @@ export default function LeadsPage() {
               <Label className="text-xs mb-1 text-[#888]">Campanha</Label>
               <Select
                 value={form.campaign_id ?? "none"}
-                onValueChange={(v) => setForm((f) => ({ ...f, campaign_id: v === "none" ? undefined : v }))}
+                onValueChange={(v) => setForm((f) => ({ ...f, campaign_id: v === "none" ? undefined : v ?? undefined }))}
               >
                 <SelectTrigger className="bg-[#1a1a1a] border-[#2a2a2a] text-[#ccc]">
                   <SelectValue placeholder="Nenhuma" />
