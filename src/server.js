@@ -42,6 +42,7 @@ import { findPhoneInJson, getJsonPath } from "./util/webhookInbound.js";
 import { generateVoiceSamplePreview } from "./gemini/voicePreview.js";
 import { listCampaigns, getCampaignById, createCampaign, updateCampaign, deleteCampaign, getCampaignStats } from "./db/campaigns.js";
 import { getBotConfig, updateBotConfig } from "./db/botConfig.js";
+import { supabase } from "./db/supabase.js";
 
 const PORT = process.env.PORT ?? 3000;
 
@@ -389,6 +390,35 @@ app.get("/stats/by-date", async (req, res) => {
 
 app.get("/stats/by-agent", async (req, res) => {
   res.json(await getStatsByAgent({ from: req.query.from, to: req.query.to }));
+});
+
+// ─── Routes: Admin (user approvals) ──────────────────────────────────────────
+
+app.get("/admin/users", async (req, res) => {
+  const { data, error } = await supabase
+    .from("user_approvals")
+    .select("*")
+    .order("created_at", { ascending: false });
+  if (error) return res.status(500).json({ error: error.message });
+  res.json(data);
+});
+
+app.patch("/admin/users/:userId", async (req, res) => {
+  const { approved, admin } = req.body;
+  const fields = {};
+  if (typeof approved === "boolean") {
+    fields.approved = approved;
+    fields.approved_at = approved ? new Date().toISOString() : null;
+  }
+  if (typeof admin === "boolean") fields.admin = admin;
+  const { data, error } = await supabase
+    .from("user_approvals")
+    .update(fields)
+    .eq("user_id", req.params.userId)
+    .select()
+    .single();
+  if (error) return res.status(500).json({ error: error.message });
+  res.json(data);
 });
 
 // ─── WebSocket /media ────────────────────────────────────────────────────────

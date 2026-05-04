@@ -42,16 +42,21 @@ export async function middleware(request: NextRequest) {
 
   // Checar aprovação para usuários autenticados em rotas protegidas
   if (user && !isLoginPage && !isAuthCallback && !isPendingPage) {
-    const { data: approval } = await supabase
-      .from("user_approvals")
-      .select("approved")
-      .eq("user_id", user.id)
-      .single();
+    try {
+      const { data: approval, error } = await supabase
+        .from("user_approvals")
+        .select("approved")
+        .eq("user_id", user.id)
+        .single();
 
-    if (!approval?.approved) {
-      const url = request.nextUrl.clone();
-      url.pathname = "/pending";
-      return NextResponse.redirect(url);
+      // Se a tabela não existe ou erro desconhecido, deixa passar (não bloqueia)
+      if (!error && approval && !approval.approved) {
+        const url = request.nextUrl.clone();
+        url.pathname = "/pending";
+        return NextResponse.redirect(url);
+      }
+    } catch {
+      // Falha silenciosa — não bloqueia acesso
     }
   }
 

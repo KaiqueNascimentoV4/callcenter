@@ -227,3 +227,19 @@ export type StatsSummary = {
 };
 
 export type DateStat = { date: string; total: number; alto: number };
+
+export type UserApproval = {
+  id: string;
+  user_id: string;
+  email: string;
+  approved: boolean;
+  admin: boolean;
+  approved_at: string | null;
+  created_at: string;
+};
+
+export const adminApi = {
+  listUsers: () => req<UserApproval[]>("/admin/users"),
+  patchUser: (userId: string, fields: Partial<Pick<UserApproval, "approved" | "admin">>) =>
+    req<UserApproval>(`/admin/users/${userId}`, { method: "PATCH", body: JSON.stringify(fields) }),
+};

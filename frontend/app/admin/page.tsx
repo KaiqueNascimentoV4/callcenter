@@ -1,49 +1,23 @@
 "use client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getSupabase } from "@/lib/supabase";
+import { adminApi, type UserApproval } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
 import { ShieldCheck, ShieldX, UserCog } from "lucide-react";
 
-type UserApproval = {
-  id: string;
-  user_id: string;
-  email: string;
-  approved: boolean;
-  admin: boolean;
-  created_at: string;
-  approved_at: string | null;
-};
-
-async function fetchApprovals(): Promise<UserApproval[]> {
-  const { data, error } = await getSupabase()
-    .from("user_approvals")
-    .select("*")
-    .order("created_at", { ascending: false });
-  if (error) throw error;
-  return data ?? [];
-}
-
-async function patchApproval(userId: string, fields: Partial<UserApproval>) {
-  const { error } = await getSupabase()
-    .from("user_approvals")
-    .update({ ...fields, approved_at: fields.approved ? new Date().toISOString() : null })
-    .eq("user_id", userId);
-  if (error) throw error;
-}
-
 export default function AdminPage() {
   const qc = useQueryClient();
+
   const { data, isLoading } = useQuery({
     queryKey: ["user-approvals"],
-    queryFn: fetchApprovals,
+    queryFn: adminApi.listUsers,
   });
 
   const patch = useMutation({
-    mutationFn: ({ userId, fields }: { userId: string; fields: Partial<UserApproval> }) =>
-      patchApproval(userId, fields),
+    mutationFn: ({ userId, fields }: { userId: string; fields: Partial<Pick<UserApproval, "approved" | "admin">> }) =>
+      adminApi.patchUser(userId, fields),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["user-approvals"] });
       toast.success("Atualizado");

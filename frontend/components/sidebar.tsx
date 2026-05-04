@@ -5,6 +5,7 @@ import { LayoutDashboard, Users, PhoneCall, Settings, Megaphone, LogOut, Bot, Sh
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 import { getSupabase } from "@/lib/supabase";
+import { adminApi } from "@/lib/api";
 import { useState, useEffect } from "react";
 
 const BASE_LINKS = [
@@ -24,14 +25,15 @@ export function Sidebar() {
 
   useEffect(() => {
     async function checkAdmin() {
-      const { data: { user } } = await getSupabase().auth.getUser();
-      if (!user) return;
-      const { data } = await getSupabase()
-        .from("user_approvals")
-        .select("admin")
-        .eq("user_id", user.id)
-        .single();
-      setIsAdmin(!!data?.admin);
+      try {
+        const users = await adminApi.listUsers();
+        const { data: { user } } = await getSupabase().auth.getUser();
+        if (!user) return;
+        const me = users.find((u) => u.user_id === user.id);
+        setIsAdmin(!!me?.admin);
+      } catch {
+        // não é admin ou backend indisponível
+      }
     }
     void checkAdmin();
   }, []);
