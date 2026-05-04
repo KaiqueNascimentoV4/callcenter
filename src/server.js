@@ -47,12 +47,26 @@ const PORT = process.env.PORT ?? 3000;
 
 const app = express();
 
-// ─── Configuração do CORS (Oficial) ─────────────────────────────────────────
-app.use(cors({
-  origin: "*", // Dica: para travar apenas pro seu front, troque "*" por "https://call.v4companyamaral.com"
-  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization", "apikey", "x-client-info"]
-}));
+// ─── CORS (REST + preflight) ────────────────────────────────────────────────
+// Útil se o frontend chamar a API por URL absoluta (outro subdomínio). Same-origin /api-ext na Vercel não precisa disto.
+const CORS_ORIGINS = new Set([
+  "https://call.v4companyamaral.com",
+  "http://localhost:3000",
+  "http://127.0.0.1:3000",
+]);
+app.use(
+  cors({
+    origin(origin, callback) {
+      if (!origin) return callback(null, true);
+      if (CORS_ORIGINS.has(origin)) return callback(null, true);
+      if (/^https:\/\/[\w.-]+\.vercel\.app$/.test(origin)) return callback(null, true);
+      callback(null, true); // integrações / ferramentas; restringir se necessário
+    },
+    methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "apikey", "x-client-info"],
+    maxAge: 86400,
+  })
+);
 
 app.use(express.urlencoded({ extended: false }));
 app.use(express.json());

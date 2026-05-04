@@ -1,18 +1,16 @@
 "use client";
 
 /**
- * Base da API REST.
- * - Desenvolvimento (`next dev`): `/api-ext` → rewrite no Next para o backend local/remoto.
- * - Produção: por defeito chama **diretamente** o Express em api-call (evita 502/504 do proxy Vercel→upstream).
- * Sobrescrever: `NEXT_PUBLIC_API_BASE=https://seu-api.example.com`
+ * Base da API REST — por defeito **`/api-ext`** (mesmo origin que o frontend na Vercel).
+ * Assim o browser não faz pedido cross-origin → não há bloqueio CORS nem páginas 502 do Traefik sem cabeçalhos CORS.
+ * O Next.js faz rewrite para `BACKEND_PROXY_TARGET` (ver `next.config.ts`).
+ *
+ * Só uses URL absoluta se configurares CORS no Express para esse origin:
+ * `NEXT_PUBLIC_API_BASE=https://api-call...`
  */
-const FALLBACK_DIRECT_API = "https://api-call.v4companyamaral.com";
-
 function apiBaseUrl(): string {
   const env = process.env.NEXT_PUBLIC_API_BASE?.trim().replace(/\/$/, "");
-  if (env) return env;
-  if (process.env.NODE_ENV === "development") return "/api-ext";
-  return FALLBACK_DIRECT_API;
+  return env || "/api-ext";
 }
 
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
