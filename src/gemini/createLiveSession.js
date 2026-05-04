@@ -47,9 +47,6 @@ export async function createLiveSession({ systemPrompt, model, voice, onMessage,
         },
       },
 
-      // Permite reconexão transparente dentro de 2h sem perder contexto
-      sessionResumption: { transparent: true },
-
       systemInstruction: {
         parts: [{ text: systemPrompt }],
       },
