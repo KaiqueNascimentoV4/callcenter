@@ -1,0 +1,417 @@
+import "dotenv/config";
+import express from "express";
+import { createServer } from "http";
+import { WebSocketServer } from "ws";
+import twilio from "twilio";
+
+import { buildStreamTwiml } from "./twilio/twiml.js";
+import { createCall } from "./twilio/createCall.js";
+import { createLiveSession } from "./gemini/createLiveSession.js";
+import { buildPromptForLead } from "./gemini/promptBuilder.js";
+import { decodeMulawToPcm16, encodePcm16ToMulaw } from "./audio/mulaw.js";
+import { resamplePcm16 } from "./audio/resample.js";
+import {
+  getLeadById, listLeads, upsertLead, updateLead, deleteLead,
+  saveLeadInfoChave, getLeadInfoChave, bulkImportLeads,
+} from "./db/leads.js";
+import {
+  saveCallResult, appendTranscript,
+  listCallResults, getCallResultById, getTranscriptsByCallSid,
+  getStatsSummary, getStatsByDate,
+} from "./db/callResults.js";
+import { listCampaigns, getCampaignById, createCampaign, updateCampaign, deleteCampaign, getCampaignStats } from "./db/campaigns.js";
+import { getBotConfig, updateBotConfig } from "./db/botConfig.js";
+
+const PORT = process.env.PORT ?? 3000;
+
+const app = express();
+app.use(express.urlencoded({ extended: false }));
+app.use(express.json());
+app.use((_req, res, next) => {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
+  if (_req.method === "OPTIONS") return res.sendStatus(204);
+  next();
+});
+
+// ─── Twilio signature validation ────────────────────────────────────────────
+
+function twilioMiddleware(req, res, next) {
+  if (process.env.NODE_ENV !== "production") return next();
+  const valid = twilio.validateRequest(
+    process.env.TWILIO_AUTH_TOKEN,
+    req.headers["x-twilio-signature"],
+    `${process.env.PUBLIC_BASE_URL}${req.originalUrl}`,
+    req.body
+  );
+  if (!valid) return res.status(403).send("Forbidden");
+  next();
+}
+
+// ─── Routes: TwiML / calls ───────────────────────────────────────────────────
+
+app.post("/twiml/voice", twilioMiddleware, (req, res) => {
+  const leadId = req.query.leadId ?? req.body.leadId;
+  const campaignId = req.query.campaignId ?? req.body.campaignId;
+  res.type("text/xml").send(buildStreamTwiml({ leadId, campaignId }));
+});
+
+app.post("/calls/start", async (req, res) => {
+  const { leadId, campaignId } = req.body;
+  if (!leadId) return res.status(400).json({ error: "leadId obrigatório" });
+
+  const lead = await getLeadById(leadId);
+  if (!lead) return res.status(404).json({ error: "Lead não encontrado" });
+  if (lead.status === "nao_contatar") return res.status(400).json({ error: "Lead marcado como não contatar" });
+
+  try {
+    const call = await createCall({ to: lead.telefone, leadId, campaignId });
+    res.json({ callSid: call.sid, status: call.status });
+  } catch (err) {
+    console.error("[/calls/start]", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── Routes: Leads ───────────────────────────────────────────────────────────
+
+app.get("/leads", async (req, res) => {
+  const { page, limit, status, campaign_id, q } = req.query;
+  const result = await listLeads({ page: +page || 1, limit: +limit || 50, status, campaign_id, q });
+  res.json(result);
+});
+
+app.post("/leads", async (req, res) => {
+  const { id, nome, telefone } = req.body;
+  if (!id || !nome || !telefone) return res.status(400).json({ error: "id, nome e telefone são obrigatórios" });
+  const lead = await upsertLead(req.body);
+  res.json(lead);
+});
+
+app.get("/leads/:id", async (req, res) => {
+  const lead = await getLeadById(req.params.id);
+  if (!lead) return res.status(404).json({ error: "Não encontrado" });
+  const info = await getLeadInfoChave(req.params.id);
+  const { data: historico } = await listCallResults({ lead_id: req.params.id, limit: 10 });
+  res.json({ ...lead, info_chave: info, historico_ligacoes: historico });
+});
+
+app.put("/leads/:id", async (req, res) => {
+  const lead = await updateLead(req.params.id, req.body);
+  res.json(lead);
+});
+
+app.delete("/leads/:id", async (req, res) => {
+  await deleteLead(req.params.id);
+  res.json({ ok: true });
+});
+
+app.post("/leads/:id/info", async (req, res) => {
+  const { chave, valor } = req.body;
+  if (!chave || !valor) return res.status(400).json({ error: "chave e valor são obrigatórios" });
+  await saveLeadInfoChave(req.params.id, chave, valor);
+  res.json({ ok: true });
+});
+
+app.post("/leads/import", async (req, res) => {
+  const { leads } = req.body;
+  if (!Array.isArray(leads)) return res.status(400).json({ error: "leads deve ser um array" });
+  const data = await bulkImportLeads(leads);
+  res.json({ imported: data.length });
+});
+
+// ─── Routes: Results / Transcripts ───────────────────────────────────────────
+
+app.get("/results", async (req, res) => {
+  const { page, limit, lead_id, interesse, humor, proxima_acao, from, to } = req.query;
+  const result = await listCallResults({ page: +page || 1, limit: +limit || 50, lead_id, interesse, humor, proxima_acao, from, to });
+  res.json(result);
+});
+
+app.get("/results/:id", async (req, res) => {
+  const result = await getCallResultById(req.params.id);
+  if (!result) return res.status(404).json({ error: "Não encontrado" });
+  res.json(result);
+});
+
+app.get("/transcripts/:callSid", async (req, res) => {
+  const data = await getTranscriptsByCallSid(req.params.callSid);
+  res.json(data);
+});
+
+// ─── Routes: Campaigns ───────────────────────────────────────────────────────
+
+app.get("/campaigns", async (_req, res) => {
+  res.json(await listCampaigns());
+});
+
+app.post("/campaigns", async (req, res) => {
+  const { nome } = req.body;
+  if (!nome) return res.status(400).json({ error: "nome é obrigatório" });
+  res.json(await createCampaign(req.body));
+});
+
+app.get("/campaigns/:id", async (req, res) => {
+  const data = await getCampaignById(req.params.id);
+  if (!data) return res.status(404).json({ error: "Não encontrado" });
+  res.json(data);
+});
+
+app.put("/campaigns/:id", async (req, res) => {
+  res.json(await updateCampaign(req.params.id, req.body));
+});
+
+app.delete("/campaigns/:id", async (req, res) => {
+  await deleteCampaign(req.params.id);
+  res.json({ ok: true });
+});
+
+app.get("/campaigns/:id/stats", async (req, res) => {
+  res.json(await getCampaignStats(req.params.id));
+});
+
+app.post("/campaigns/:id/dispatch", async (req, res) => {
+  const campaign = await getCampaignById(req.params.id);
+  if (!campaign) return res.status(404).json({ error: "Campanha não encontrada" });
+
+  const leads = campaign.leads?.filter(l => l.status === "novo" || l.status === "contactado") ?? [];
+  const results = [];
+
+  for (const lead of leads) {
+    try {
+      const call = await createCall({ to: lead.telefone, leadId: lead.id, campaignId: campaign.id });
+      results.push({ leadId: lead.id, callSid: call.sid, ok: true });
+    } catch (e) {
+      results.push({ leadId: lead.id, ok: false, error: e.message });
+    }
+    // Delay entre ligações para não sobrecarregar
+    await new Promise(r => setTimeout(r, 2000));
+  }
+
+  res.json({ dispatched: results.length, results });
+});
+
+// ─── Routes: Bot Config ──────────────────────────────────────────────────────
+
+app.get("/bot-config", async (_req, res) => {
+  res.json(await getBotConfig());
+});
+
+app.put("/bot-config", async (req, res) => {
+  res.json(await updateBotConfig(req.body));
+});
+
+// ─── Routes: Stats ───────────────────────────────────────────────────────────
+
+app.get("/stats/summary", async (_req, res) => {
+  res.json(await getStatsSummary());
+});
+
+app.get("/stats/by-date", async (req, res) => {
+  res.json(await getStatsByDate({ from: req.query.from, to: req.query.to }));
+});
+
+// ─── WebSocket /media ────────────────────────────────────────────────────────
+
+const httpServer = createServer(app);
+const wss = new WebSocketServer({ server: httpServer, path: "/media" });
+
+wss.on("connection", (twilioWs) => {
+  console.log("[WS] Nova conexão Twilio");
+
+  let streamSid = null;
+  let callSid = null;
+  let leadId = null;
+  let geminiSession = null;
+  let botConfig = null;
+
+  const audioQueue = [];
+  let sending = false;
+
+  function flushQueue() {
+    if (sending || audioQueue.length === 0) return;
+    sending = true;
+    const payload = audioQueue.shift();
+    try {
+      if (twilioWs.readyState === twilioWs.OPEN) {
+        twilioWs.send(JSON.stringify({ event: "media", streamSid, media: { payload } }));
+      }
+    } catch (e) {
+      console.error("[WS] Erro ao enviar áudio", e);
+    }
+    sending = false;
+    if (audioQueue.length > 0) setImmediate(flushQueue);
+  }
+
+  function enqueueAudio(mulawBase64) {
+    audioQueue.push(mulawBase64);
+    flushQueue();
+  }
+
+  function sendClear() {
+    if (twilioWs.readyState !== twilioWs.OPEN) return;
+    twilioWs.send(JSON.stringify({ event: "clear", streamSid }));
+    audioQueue.length = 0;
+  }
+
+  async function handleGeminiMessage(geminiMsg) {
+    if (geminiMsg.serverContent?.modelTurn?.parts) {
+      for (const part of geminiMsg.serverContent.modelTurn.parts) {
+        if (part.inlineData?.data) {
+          const pcm24k = Buffer.from(part.inlineData.data, "base64");
+          const pcm8k = resamplePcm16(pcm24k, 24000, 8000);
+          enqueueAudio(encodePcm16ToMulaw(pcm8k).toString("base64"));
+        }
+      }
+    }
+
+    if (geminiMsg.serverContent?.interrupted) {
+      sendClear();
+    }
+
+    const inputText = geminiMsg.serverContent?.inputTranscription?.text;
+    if (inputText) {
+      console.log(`[Trans] Usuário: ${inputText}`);
+      appendTranscript(callSid, "user", inputText);
+    }
+
+    const outputText = geminiMsg.serverContent?.outputTranscription?.text;
+    if (outputText) {
+      console.log(`[Trans] Agente: ${outputText}`);
+      appendTranscript(callSid, "agent", outputText);
+    }
+
+    if (geminiMsg.toolCall?.functionCalls) {
+      for (const fc of geminiMsg.toolCall.functionCalls) {
+        if (fc.name === "salvar_resultado_ligacao") {
+          console.log("[FC] salvar_resultado_ligacao", fc.args);
+          try {
+            await saveCallResult({ callSid, leadId, ...fc.args });
+          } catch (err) {
+            console.error("[FC] Erro ao salvar resultado", err);
+          }
+
+          if (process.env.N8N_WEBHOOK_URL) {
+            fetch(process.env.N8N_WEBHOOK_URL, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ callSid, leadId, ...fc.args }),
+            }).catch(e => console.error("[n8n]", e));
+          }
+
+          geminiSession?.sendToolResponse({
+            functionResponses: [{ id: fc.id, name: fc.name, response: { result: "ok", saved: true } }],
+          });
+        }
+
+        if (fc.name === "salvar_informacao_cliente") {
+          console.log("[FC] salvar_informacao_cliente", fc.args);
+          if (leadId) {
+            saveLeadInfoChave(leadId, fc.args.chave, fc.args.valor).catch(console.error);
+          }
+          geminiSession?.sendToolResponse({
+            functionResponses: [{ id: fc.id, name: fc.name, response: { result: "ok" } }],
+          });
+        }
+      }
+    }
+  }
+
+  twilioWs.on("message", async (raw) => {
+    let msg;
+    try { msg = JSON.parse(raw.toString()); } catch { return; }
+
+    switch (msg.event) {
+      case "connected":
+        console.log("[WS] connected");
+        break;
+
+      case "start": {
+        streamSid = msg.start.streamSid;
+        callSid = msg.start.callSid;
+        leadId = msg.start.customParameters?.leadId;
+        console.log(`[WS] start — callSid=${callSid} leadId=${leadId}`);
+
+        const [lead, config] = await Promise.all([
+          leadId ? getLeadById(leadId) : null,
+          getBotConfig(),
+        ]);
+        botConfig = config;
+
+        const systemPrompt = buildPromptForLead(lead ?? { nome: "cliente" }, config);
+
+        try {
+          geminiSession = await createLiveSession({
+            systemPrompt,
+            model: config.modelo_gemini,
+            voice: config.voz,
+            onMessage: handleGeminiMessage,
+            onError: (e) => console.error("[Gemini] error", e),
+            onClose: (e) => console.log("[Gemini] closed", e?.reason ?? ""),
+          });
+          console.log("[Gemini] Sessão aberta");
+
+          if (config.quem_fala_primeiro === "agente") {
+            setTimeout(() => {
+              geminiSession?.sendClientContent({
+                turns: [{ role: "user", parts: [{ text: "A chamada foi atendida. Inicie a conversa agora." }] }],
+                turnComplete: true,
+              });
+            }, 500);
+          }
+
+          // Timeout da ligação
+          const timeout = (config.timeout_segundos ?? 120) * 1000;
+          setTimeout(() => {
+            if (geminiSession) {
+              console.log(`[WS] Timeout de ${config.timeout_segundos}s atingido`);
+              geminiSession.close();
+            }
+          }, timeout);
+
+        } catch (err) {
+          console.error("[Gemini] Falha ao abrir sessão", err);
+        }
+        break;
+      }
+
+      case "media": {
+        if (!geminiSession) break;
+        const mulaw8k = Buffer.from(msg.media.payload, "base64");
+        const pcm16 = decodeMulawToPcm16(mulaw8k);
+        const pcm16k = resamplePcm16(pcm16, 8000, 16000);
+        geminiSession.sendRealtimeInput({
+          audio: { data: pcm16k.toString("base64"), mimeType: "audio/pcm;rate=16000" },
+        });
+        break;
+      }
+
+      case "mark":
+        console.log(`[WS] mark: ${msg.mark?.name}`);
+        break;
+
+      case "stop":
+        console.log("[WS] stop");
+        geminiSession?.close();
+        geminiSession = null;
+        break;
+    }
+  });
+
+  twilioWs.on("close", () => {
+    console.log("[WS] Conexão encerrada");
+    geminiSession?.close();
+    geminiSession = null;
+  });
+
+  twilioWs.on("error", (err) => console.error("[WS] Erro:", err));
+});
+
+// ─── Start ───────────────────────────────────────────────────────────────────
+
+httpServer.listen(PORT, () => {
+  console.log(`\n🎙  Voice Agent rodando na porta ${PORT}`);
+  console.log(`   API: ${process.env.PUBLIC_BASE_URL}`);
+  console.log(`   WSS: ${process.env.WS_PUBLIC_URL}\n`);
+});

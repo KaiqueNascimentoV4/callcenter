@@ -1,0 +1,28 @@
+# Dependências
+node_modules/
+frontend/node_modules/
+
+# Ambiente — NUNCA commitar credenciais
+.env
+.env.local
+frontend/.env.local
+
+# Banco SQLite local (substituído pelo Supabase)
+data.db
+*.db
+
+# Build
+frontend/.next/
+frontend/out/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
