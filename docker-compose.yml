@@ -1,17 +1,40 @@
-version: '3.8'
+version: "3.8"
 
 services:
   backend:
     image: ghcr.io/kaiquenascimentov4/callcenter:latest
     networks:
       - portainer
-      
-    # 👇 ADICIONE ESTA PARTE AQUI 👇
+
     environment:
+      # Obrigatório: mesma porta que o Traefik (label loadbalancer.server.port)
+      - PORT=3001
+
+      # URLs públicas (sem barra no final em PUBLIC_BASE_URL)
+      - PUBLIC_BASE_URL=${PUBLIC_BASE_URL:-https://api-call.v4companyamaral.com}
+      - WS_PUBLIC_URL=${WS_PUBLIC_URL:-wss://api-call.v4companyamaral.com/media}
+
+      - NODE_ENV=production
+
       - SUPABASE_URL=${SUPABASE_URL}
       - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
       - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
-    # 👆 ======================= 👆
+
+      - TWILIO_ACCOUNT_SID=${TWILIO_ACCOUNT_SID}
+      - TWILIO_AUTH_TOKEN=${TWILIO_AUTH_TOKEN}
+      - TWILIO_PHONE_NUMBER=${TWILIO_PHONE_NUMBER}
+
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.0-flash-live-001}
+      - GEMINI_VOICE=${GEMINI_VOICE:-Kore}
+
+      - DATABASE_PATH=${DATABASE_PATH:-/app/data/data.db}
+      - EMPRESA_NOME=${EMPRESA_NOME:-Callcenter}
+      - N8N_WEBHOOK_URL=${N8N_WEBHOOK_URL:-}
+
+    volumes:
+      # Persistir SQLite entre restarts (criar pasta no host ou usar named volume)
+      - callcenter-data:/app/data
 
     deploy:
       replicas: 1
@@ -19,12 +42,10 @@ services:
         condition: on-failure
       labels:
         - "traefik.enable=true"
-        # HTTPS
         - "traefik.http.routers.callcenter.rule=Host(`api-call.v4companyamaral.com`)"
         - "traefik.http.routers.callcenter.entrypoints=websecure"
         - "traefik.http.routers.callcenter.tls.certresolver=letsencryptresolver"
         - "traefik.http.services.callcenter.loadbalancer.server.port=3001"
-        # HTTP → HTTPS redirect
         - "traefik.http.routers.callcenter-http.rule=Host(`api-call.v4companyamaral.com`)"
         - "traefik.http.routers.callcenter-http.entrypoints=web"
         - "traefik.http.middlewares.callcenter-https.redirectscheme.scheme=https"
@@ -33,3 +54,6 @@ services:
 networks:
   portainer:
     external: true
+
+volumes:
+  callcenter-data:
