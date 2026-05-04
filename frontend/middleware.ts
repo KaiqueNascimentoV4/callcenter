@@ -23,8 +23,10 @@ export async function middleware(request: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser();
 
-  const isLoginPage = request.nextUrl.pathname.startsWith("/login");
-  const isAuthCallback = request.nextUrl.pathname.startsWith("/auth");
+  const { pathname } = request.nextUrl;
+  const isLoginPage = pathname.startsWith("/login");
+  const isAuthCallback = pathname.startsWith("/auth");
+  const isPendingPage = pathname.startsWith("/pending");
 
   if (!user && !isLoginPage && !isAuthCallback) {
     const url = request.nextUrl.clone();
@@ -36,6 +38,21 @@ export async function middleware(request: NextRequest) {
     const url = request.nextUrl.clone();
     url.pathname = "/";
     return NextResponse.redirect(url);
+  }
+
+  // Checar aprovação para usuários autenticados em rotas protegidas
+  if (user && !isLoginPage && !isAuthCallback && !isPendingPage) {
+    const { data: approval } = await supabase
+      .from("user_approvals")
+      .select("approved")
+      .eq("user_id", user.id)
+      .single();
+
+    if (!approval?.approved) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/pending";
+      return NextResponse.redirect(url);
+    }
   }
 
   return supabaseResponse;

@@ -11,8 +11,23 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
-import { Plus, Pencil, Trash2, RefreshCw, Volume2 } from "lucide-react";
+import { Plus, Pencil, Trash2, RefreshCw, Volume2, Copy, X } from "lucide-react";
 import { useRef, useState } from "react";
+
+type KVEntry = { key: string; value: string };
+
+function kvFromObj(obj: Record<string, unknown>): KVEntry[] {
+  return Object.entries(obj).map(([key, value]) => ({
+    key,
+    value: typeof value === "string" ? value : JSON.stringify(value),
+  }));
+}
+
+function kvToObj(entries: KVEntry[]): Record<string, unknown> {
+  return Object.fromEntries(
+    entries.filter((e) => e.key.trim()).map((e) => [e.key.trim(), e.value])
+  );
+}
 
 const EMPTY: Partial<Agent> = {
   nome: "",
@@ -29,11 +44,15 @@ const EMPTY: Partial<Agent> = {
   empresa_contexto: {},
 };
 
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
+
 export default function AgentsPage() {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<Partial<Agent>>(EMPTY);
-  const [ctxJson, setCtxJson] = useState("{}");
+  const [kvEntries, setKvEntries] = useState<KVEntry[]>([]);
+  const [newKv, setNewKv] = useState({ key: "", value: "" });
+  const [playingPreview, setPlayingPreview] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const { data: agents, isLoading } = useQuery({
@@ -43,12 +62,7 @@ export default function AgentsPage() {
 
   const save = useMutation({
     mutationFn: async (a: Partial<Agent>) => {
-      let empresa_contexto: Record<string, unknown> | undefined;
-      try {
-        empresa_contexto = JSON.parse(ctxJson || "{}");
-      } catch {
-        throw new Error("JSON inválido em contexto da empresa");
-      }
+      const empresa_contexto = kvToObj(kvEntries);
       const payload = {
         ...a,
         empresa_contexto,
@@ -85,31 +99,57 @@ export default function AgentsPage() {
   async function playPreview() {
     if (!form.id) return;
     try {
+      setPlayingPreview(true);
       const url = agentsApi.voicePreviewUrl(form.id);
       if (!audioRef.current) audioRef.current = new Audio();
       audioRef.current.src = `${url}?t=${Date.now()}`;
+      audioRef.current.onended = () => setPlayingPreview(false);
       await audioRef.current.play().catch(() => {
         toast.error("Não foi possível reproduzir (preview pode estar indisponível no servidor)");
+        setPlayingPreview(false);
       });
     } catch {
       toast.error("Erro ao carregar preview");
+      setPlayingPreview(false);
     }
   }
 
   function startCreate() {
     setForm(EMPTY);
-    setCtxJson("{}");
+    setKvEntries([]);
+    setNewKv({ key: "", value: "" });
     setOpen(true);
   }
 
   function startEdit(a: Agent) {
     setForm(a);
-    setCtxJson(JSON.stringify(a.empresa_contexto ?? {}, null, 2));
+    setKvEntries(kvFromObj(a.empresa_contexto ?? {}));
+    setNewKv({ key: "", value: "" });
     setOpen(true);
   }
 
+  function addKv() {
+    if (!newKv.key.trim()) return;
+    setKvEntries((e) => [...e, { ...newKv }]);
+    setNewKv({ key: "", value: "" });
+  }
+
+  function removeKv(i: number) {
+    setKvEntries((e) => e.filter((_, idx) => idx !== i));
+  }
+
+  function copyWebhookUrl(token: string) {
+    const full = `${API_BASE}/hooks/inbound/${token}`;
+    void navigator.clipboard.writeText(full);
+    toast.success("URL do webhook copiada!");
+  }
+
+  const inboundPath = form.webhook_entrada_token
+    ? `${API_BASE}/hooks/inbound/${form.webhook_entrada_token}`
+    : "";
+
   const inboundExample = form.webhook_entrada_token
-    ? `POST .../hooks/inbound/${form.webhook_entrada_token}\nContent-Type: application/json\n{ "nome": "Maria", "telefone": "+5511999999999" }`
+    ? `POST ${inboundPath}\nContent-Type: application/json\n{ "nome": "Maria", "telefone": "+5511999999999" }`
     : "";
 
   return (
@@ -132,7 +172,7 @@ export default function AgentsPage() {
         <table className="w-full text-sm">
           <thead className="border-b border-[#1e1e1e]">
             <tr>
-              {["Nome", "Empresa", "Voz", "Status", ""].map((h) => (
+              {["Nome", "Empresa", "Voz", "Modelo", "Status", ""].map((h) => (
                 <th key={h} className="text-left px-4 py-3 font-medium text-[#555] text-[11px] uppercase tracking-wide">
                   {h}
                 </th>
@@ -142,13 +182,13 @@ export default function AgentsPage() {
           <tbody>
             {isLoading ? (
               <tr>
-                <td colSpan={5} className="text-center py-12 text-[#555]">
+                <td colSpan={6} className="text-center py-12 text-[#555]">
                   Carregando…
                 </td>
               </tr>
             ) : agents?.length === 0 ? (
               <tr>
-                <td colSpan={5} className="text-center py-12 text-[#555]">
+                <td colSpan={6} className="text-center py-12 text-[#555]">
                   Nenhum agente — crie o primeiro para associar a leads
                 </td>
               </tr>
@@ -158,6 +198,7 @@ export default function AgentsPage() {
                   <td className="px-4 py-3 font-medium text-white">{a.nome}</td>
                   <td className="px-4 py-3 text-[#888]">{a.empresa_nome ?? "—"}</td>
                   <td className="px-4 py-3 text-[#888]">{a.voz}</td>
+                  <td className="px-4 py-3 text-[#666] text-[11px]">{a.modelo_gemini}</td>
                   <td className="px-4 py-3">
                     <Badge variant="outline" className={a.ativo ? "border-green-500/40 text-green-400" : "border-[#444] text-[#666]"}>
                       {a.ativo ? "Ativo" : "Inativo"}
@@ -211,20 +252,27 @@ export default function AgentsPage() {
               </div>
               <div>
                 <Label className="text-xs text-[#888]">Modelo Gemini</Label>
-                <Input
-                  className="bg-[#1a1a1a] border-[#2a2a2a] text-[#ccc]"
-                  value={form.modelo_gemini ?? ""}
+                <select
+                  className="w-full h-9 rounded-md bg-[#1a1a1a] border border-[#2a2a2a] text-[#ccc] px-2 text-sm"
+                  value={form.modelo_gemini ?? "gemini-2.0-flash-live-001"}
                   onChange={(e) => setForm((f) => ({ ...f, modelo_gemini: e.target.value }))}
-                />
+                >
+                  <option value="gemini-2.0-flash-live-001">gemini-2.0-flash-live-001</option>
+                  <option value="gemini-2.5-flash-live-preview">gemini-2.5-flash-live-preview</option>
+                  <option value="gemini-3.1-flash-live-preview">gemini-3.1-flash-live-preview</option>
+                </select>
               </div>
               <div>
                 <Label className="text-xs text-[#888]">Voz (prebuilt)</Label>
-                <Input
-                  className="bg-[#1a1a1a] border-[#2a2a2a] text-[#ccc]"
-                  value={form.voz ?? ""}
+                <select
+                  className="w-full h-9 rounded-md bg-[#1a1a1a] border border-[#2a2a2a] text-[#ccc] px-2 text-sm"
+                  value={form.voz ?? "Kore"}
                   onChange={(e) => setForm((f) => ({ ...f, voz: e.target.value }))}
-                  placeholder="Kore, Aoede, ..."
-                />
+                >
+                  {["Kore", "Aoede", "Charon", "Fenrir", "Puck", "Orbit", "Zephyr", "Leda", "Orus", "Autonoe"].map((v) => (
+                    <option key={v} value={v}>{v}</option>
+                  ))}
+                </select>
               </div>
               <div>
                 <Label className="text-xs text-[#888]">Timeout (s)</Label>
@@ -267,13 +315,48 @@ export default function AgentsPage() {
                 onChange={(e) => setForm((f) => ({ ...f, instrucoes_background: e.target.value }))}
               />
             </div>
-            <div>
-              <Label className="text-xs text-[#888]">Contexto empresa (JSON livre)</Label>
-              <Textarea
-                className="bg-[#1a1a1a] border-[#2a2a2a] text-[#ccc] min-h-[80px] font-mono text-xs"
-                value={ctxJson}
-                onChange={(e) => setCtxJson(e.target.value)}
-              />
+
+            {/* Contexto empresa como key-value */}
+            <div className="border border-[#2a2a2a] rounded-lg p-3 space-y-2">
+              <p className="text-[11px] text-[#555] uppercase tracking-wide">Contexto da empresa</p>
+              {kvEntries.map((entry, i) => (
+                <div key={i} className="flex gap-2 items-center">
+                  <Input
+                    className="bg-[#1a1a1a] border-[#2a2a2a] text-[#ccc] text-xs h-8 flex-1"
+                    value={entry.key}
+                    onChange={(e) => setKvEntries((es) => es.map((x, idx) => idx === i ? { ...x, key: e.target.value } : x))}
+                    placeholder="chave"
+                  />
+                  <Input
+                    className="bg-[#1a1a1a] border-[#2a2a2a] text-[#ccc] text-xs h-8 flex-[2]"
+                    value={entry.value}
+                    onChange={(e) => setKvEntries((es) => es.map((x, idx) => idx === i ? { ...x, value: e.target.value } : x))}
+                    placeholder="valor"
+                  />
+                  <Button type="button" size="icon" variant="ghost" className="w-7 h-7 shrink-0" onClick={() => removeKv(i)}>
+                    <X className="w-3.5 h-3.5 text-[#666]" />
+                  </Button>
+                </div>
+              ))}
+              <div className="flex gap-2 items-center">
+                <Input
+                  className="bg-[#1a1a1a] border-[#2a2a2a] text-[#ccc] text-xs h-8 flex-1"
+                  value={newKv.key}
+                  onChange={(e) => setNewKv((n) => ({ ...n, key: e.target.value }))}
+                  placeholder="nova chave"
+                  onKeyDown={(e) => e.key === "Enter" && addKv()}
+                />
+                <Input
+                  className="bg-[#1a1a1a] border-[#2a2a2a] text-[#ccc] text-xs h-8 flex-[2]"
+                  value={newKv.value}
+                  onChange={(e) => setNewKv((n) => ({ ...n, value: e.target.value }))}
+                  placeholder="valor"
+                  onKeyDown={(e) => e.key === "Enter" && addKv()}
+                />
+                <Button type="button" size="sm" variant="outline" className="h-8 border-[#2a2a2a] text-[#888]" onClick={addKv}>
+                  <Plus className="w-3.5 h-3.5" />
+                </Button>
+              </div>
             </div>
 
             <div className="border border-[#2a2a2a] rounded-lg p-3 space-y-2">
@@ -291,20 +374,17 @@ export default function AgentsPage() {
                 <>
                   <div>
                     <Label className="text-xs text-[#888]">Disparo entrada (POST JSON → cria lead e liga)</Label>
-                    <pre className="text-[10px] bg-[#0a0a0a] p-2 rounded border border-[#2a2a2a] text-[#aaa] whitespace-pre-wrap break-all">
+                    <pre className="text-[10px] bg-[#0a0a0a] p-2 rounded border border-[#2a2a2a] text-[#aaa] whitespace-pre-wrap break-all mt-1">
                       {inboundExample}
                     </pre>
                     <Button
                       type="button"
                       variant="outline"
                       size="sm"
-                      className="mt-2 border-[#2a2a2a] text-[#888]"
-                      onClick={() => {
-                        void navigator.clipboard.writeText(`/hooks/inbound/${form.webhook_entrada_token}`);
-                        toast.success("Path copiado — prefixe com a URL pública da sua API");
-                      }}
+                      className="mt-2 border-[#2a2a2a] text-[#888] gap-1.5"
+                      onClick={() => copyWebhookUrl(form.webhook_entrada_token!)}
                     >
-                      Copiar path do webhook
+                      <Copy className="w-3 h-3" /> Copiar URL do webhook
                     </Button>
                   </div>
                   <div className="flex items-center gap-2">
@@ -331,10 +411,17 @@ export default function AgentsPage() {
 
             {form.id && (
               <div className="flex items-center gap-2">
-                <Button type="button" variant="outline" className="border-[#2a2a2a] text-[#ccc]" onClick={() => void playPreview()}>
-                  <Volume2 className="w-4 h-4 mr-2" /> Ouvir amostra da voz (Google)
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="border-[#2a2a2a] text-[#ccc] gap-2"
+                  onClick={() => void playPreview()}
+                  disabled={playingPreview}
+                >
+                  <Volume2 className={`w-4 h-4 ${playingPreview ? "text-[#ff4400] animate-pulse" : ""}`} />
+                  {playingPreview ? "Reproduzindo…" : "Ouvir amostra da voz"}
                 </Button>
-                <span className="text-[11px] text-[#555]">Usa modelo flash no servidor; pode falhar conforme região.</span>
+                <span className="text-[11px] text-[#555]">Usa Gemini TTS; pode falhar conforme região.</span>
               </div>
             )}
           </div>

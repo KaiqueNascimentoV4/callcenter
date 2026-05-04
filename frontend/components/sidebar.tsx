@@ -1,13 +1,13 @@
 "use client";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { LayoutDashboard, Users, PhoneCall, Settings, Megaphone, LogOut, Bot } from "lucide-react";
+import { LayoutDashboard, Users, PhoneCall, Settings, Megaphone, LogOut, Bot, ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 import { getSupabase } from "@/lib/supabase";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
-const links = [
+const BASE_LINKS = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/agents", label: "Agentes", icon: Bot },
   { href: "/leads", label: "Leads", icon: Users },
@@ -20,9 +20,28 @@ export function Sidebar() {
   const path = usePathname();
   const router = useRouter();
   const [signingOut, setSigningOut] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
 
-  const isLogin = path.startsWith("/login") || path.startsWith("/auth");
+  useEffect(() => {
+    async function checkAdmin() {
+      const { data: { user } } = await getSupabase().auth.getUser();
+      if (!user) return;
+      const { data } = await getSupabase()
+        .from("user_approvals")
+        .select("admin")
+        .eq("user_id", user.id)
+        .single();
+      setIsAdmin(!!data?.admin);
+    }
+    void checkAdmin();
+  }, []);
+
+  const isLogin = path.startsWith("/login") || path.startsWith("/auth") || path.startsWith("/pending");
   if (isLogin) return null;
+
+  const links = isAdmin
+    ? [...BASE_LINKS, { href: "/admin", label: "Admin", icon: ShieldCheck }]
+    : BASE_LINKS;
 
   async function handleSignOut() {
     setSigningOut(true);

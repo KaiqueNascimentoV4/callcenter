@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { statsApi, resultsApi, agentsApi } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { PhoneCall, TrendingUp, Users, Zap } from "lucide-react";
+import { PhoneCall, TrendingUp, Users, Zap, Bot } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar, Legend } from "recharts";
 import { interesseBadge, proximo } from "@/lib/badges";
 import { motion } from "framer-motion";
@@ -57,11 +57,14 @@ export default function Dashboard() {
       alto: a.alto,
     })) ?? [];
 
+  const activeAgentsCount = agentsList?.filter((a) => a.ativo).length ?? "—";
+
   const cards = [
     { label: "Ligações hoje", value: summary?.ligacoes_hoje ?? "—", icon: PhoneCall, accent: "#ff4400" },
     { label: "Total de ligações", value: summary?.total_ligacoes ?? "—", icon: Users, accent: "#888" },
     { label: "Taxa interesse alto", value: summary ? `${summary.taxa_interesse_alto}%` : "—", icon: TrendingUp, accent: "#22c55e" },
     { label: "Taxa de conversão", value: summary ? `${summary.taxa_conversao}%` : "—", icon: Zap, accent: "#a855f7" },
+    { label: "Agentes ativos", value: activeAgentsCount, icon: Bot, accent: "#3b82f6" },
   ];
 
   return (
@@ -90,7 +93,7 @@ export default function Dashboard() {
         </div>
       </motion.div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         {cards.map(({ label, value, icon: Icon, accent }, i) => (
           <motion.div key={label} custom={i} variants={fadeUp} initial="hidden" animate="show">
             <Card className="bg-[#111] border-[#1e1e1e] hover:border-[#2a2a2a] transition-colors">

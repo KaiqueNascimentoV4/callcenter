@@ -36,6 +36,20 @@ export async function createLiveSession({ systemPrompt, model, voice, onMessage,
       inputAudioTranscription: {},
       outputAudioTranscription: {},
 
+      // Reduz cortes prematuros e falsos inícios de fala
+      realtimeInputConfig: {
+        automaticActivityDetection: {
+          disabled: false,
+          startOfSpeechSensitivity: "START_SENSITIVITY_LOW",
+          endOfSpeechSensitivity: "END_SENSITIVITY_LOW",
+          prefixPaddingMs: 200,
+          silenceDurationMs: 800,
+        },
+      },
+
+      // Permite reconexão transparente dentro de 2h sem perder contexto
+      sessionResumption: { transparent: true },
+
       systemInstruction: {
         parts: [{ text: systemPrompt }],
       },

@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { leadsApi, agentsApi, type Lead } from "@/lib/api";
+import { leadsApi, agentsApi, campaignsApi, type Lead } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,6 +19,8 @@ const STATUS_LABELS: Record<string, string> = {
   nao_contatar: "Não contatar", arquivado: "Arquivado",
 };
 
+const E164_RE = /^\+[1-9]\d{7,14}$/;
+
 const EMPTY: Partial<Lead> = {
   nome: "",
   telefone: "",
@@ -29,6 +31,7 @@ const EMPTY: Partial<Lead> = {
   oferta: "",
   status: "novo",
   agent_id: undefined,
+  campaign_id: undefined,
 };
 
 export default function LeadsPage() {
@@ -44,6 +47,11 @@ export default function LeadsPage() {
   const { data: agentsList } = useQuery({
     queryKey: ["agents", "for-leads"],
     queryFn: () => agentsApi.list(false),
+  });
+
+  const { data: campaignsList } = useQuery({
+    queryKey: ["campaigns", "for-leads"],
+    queryFn: () => campaignsApi.list(),
   });
 
   const { data, isLoading } = useQuery({
@@ -64,6 +72,9 @@ export default function LeadsPage() {
 
   const save = useMutation({
     mutationFn: async (l: Partial<Lead>) => {
+      if (!l.nome?.trim()) throw new Error("Nome é obrigatório");
+      if (!l.telefone?.trim()) throw new Error("Telefone é obrigatório");
+      if (!E164_RE.test(l.telefone.trim())) throw new Error("Telefone deve estar no formato E.164 (ex: +5511999999999)");
       const payload = { ...l };
       const editingExisting = Boolean(l.id && data?.data?.some((x) => x.id === l.id));
       if (!editingExisting) {
@@ -190,7 +201,7 @@ export default function LeadsPage() {
         <DialogContent className="max-w-lg bg-[#111] border-[#2a2a2a]">
           <DialogHeader><DialogTitle className="text-white">{form.id ? "Editar lead" : "Novo lead"}</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3 py-2">
-            <div className="col-span-2">
+            <div>
               <Label className="text-xs mb-1 text-[#888]">Agente</Label>
               <Select
                 value={form.agent_id ?? "none"}
@@ -209,9 +220,28 @@ export default function LeadsPage() {
                 </SelectContent>
               </Select>
             </div>
+            <div>
+              <Label className="text-xs mb-1 text-[#888]">Campanha</Label>
+              <Select
+                value={form.campaign_id ?? "none"}
+                onValueChange={(v) => setForm((f) => ({ ...f, campaign_id: v === "none" ? undefined : v }))}
+              >
+                <SelectTrigger className="bg-[#1a1a1a] border-[#2a2a2a] text-[#ccc]">
+                  <SelectValue placeholder="Nenhuma" />
+                </SelectTrigger>
+                <SelectContent className="bg-[#161616] border-[#2a2a2a]">
+                  <SelectItem value="none">Nenhuma campanha</SelectItem>
+                  {campaignsList?.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.nome}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             {[
               { key: "nome", label: "Nome *", placeholder: "João Silva" },
-              { key: "telefone", label: "Telefone *", placeholder: "+5511999999999" },
+              { key: "telefone", label: "Telefone * (E.164)", placeholder: "+5511999999999" },
               { key: "empresa", label: "Empresa", placeholder: "TechCorp" },
               { key: "cargo", label: "Cargo", placeholder: "Diretor Comercial" },
               { key: "origem", label: "Origem", placeholder: "formulário web" },
@@ -219,7 +249,11 @@ export default function LeadsPage() {
               <div key={key}>
                 <Label className="text-xs mb-1 text-[#888]">{label}</Label>
                 <Input placeholder={placeholder}
-                  className="bg-[#1a1a1a] border-[#2a2a2a] text-[#ccc] placeholder:text-[#444]"
+                  className={`bg-[#1a1a1a] border-[#2a2a2a] text-[#ccc] placeholder:text-[#444] ${
+                    key === "telefone" && form.telefone && !E164_RE.test(form.telefone)
+                      ? "border-red-500/60"
+                      : ""
+                  }`}
                   value={(form as Record<string, string>)[key] ?? ""}
                   onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))} />
               </div>

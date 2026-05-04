@@ -6,11 +6,34 @@ function bufKey(callSid, role) {
   return `${callSid}\0${role}`;
 }
 
+function oppositeRole(role) {
+  return role === "agent" ? "user" : "agent";
+}
+
+async function flush(callSid, role) {
+  const k = bufKey(callSid, role);
+  const b = buffers.get(k);
+  if (!b) return;
+  clearTimeout(b.timer);
+  const merged = b.parts.join(" ");
+  buffers.delete(k);
+  if (merged.trim()) await appendTranscript(callSid, role, merged);
+}
+
 /**
- * Acumula chunks STT e faz um único insert após silêncio (menos linhas na BD).
+ * Acumula chunks STT e faz um único insert após silêncio.
+ * Quando chega texto de um role e existe buffer pendente do role oposto,
+ * faz flush imediato no buffer oposto (troca de turno real).
  */
-export function debouncedAppendTranscript(callSid, role, texto, ms = 480) {
+export function debouncedAppendTranscript(callSid, role, texto, ms = 1200) {
   if (!callSid || !texto?.trim()) return;
+
+  // Flush imediato no buffer do role oposto ao detectar troca de turno
+  const otherKey = bufKey(callSid, oppositeRole(role));
+  if (buffers.has(otherKey)) {
+    void flush(callSid, oppositeRole(role));
+  }
+
   const k = bufKey(callSid, role);
   let b = buffers.get(k);
   if (!b) {

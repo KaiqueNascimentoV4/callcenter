@@ -272,7 +272,8 @@ app.get("/agents/:id/voice-preview", async (req, res) => {
   const merged = await getEffectiveAgentConfig(agent);
   const sample = await generateVoiceSamplePreview({
     voice: merged.voz,
-    model: merged.modelo_gemini,
+    agentName: agent.nome,
+    empresaNome: agent.empresa_nome,
   });
   if (!sample?.base64) {
     return res.status(503).json({
