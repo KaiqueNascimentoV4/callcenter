@@ -35,5 +35,7 @@ jobs:
             ghcr.io/kaiquenascimentov4/callcenter:${{ github.sha }}
 
       - name: Notifica Portainer para redeployar
-        if: ${{ secrets.PORTAINER_WEBHOOK != '' }}
-        run: curl -X POST "${{ secrets.PORTAINER_WEBHOOK }}"
+        run: |
+          if [ -n "${{ secrets.PORTAINER_WEBHOOK }}" ]; then
+            curl -X POST "${{ secrets.PORTAINER_WEBHOOK }}"
+          fi
