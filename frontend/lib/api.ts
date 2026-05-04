@@ -1,13 +1,28 @@
 "use client";
 
-const API_BASE = "/api-ext";
+/**
+ * Base da API REST.
+ * - Desenvolvimento (`next dev`): `/api-ext` → rewrite no Next para o backend local/remoto.
+ * - Produção: por defeito chama **diretamente** o Express em api-call (evita 502/504 do proxy Vercel→upstream).
+ * Sobrescrever: `NEXT_PUBLIC_API_BASE=https://seu-api.example.com`
+ */
+const FALLBACK_DIRECT_API = "https://api-call.v4companyamaral.com";
+
+function apiBaseUrl(): string {
+  const env = process.env.NEXT_PUBLIC_API_BASE?.trim().replace(/\/$/, "");
+  if (env) return env;
+  if (process.env.NODE_ENV === "development") return "/api-ext";
+  return FALLBACK_DIRECT_API;
+}
 
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
+  const base = apiBaseUrl();
+  const url = `${base}${path.startsWith("/") ? path : `/${path}`}`;
   const headers: HeadersInit = {
     ...(init?.body ? { "Content-Type": "application/json" } : {}),
     ...init?.headers,
   };
-  const res = await fetch(`${API_BASE}${path}`, {
+  const res = await fetch(url, {
     ...init,
     headers,
   });
@@ -78,7 +93,12 @@ export const agentsApi = {
   update: (id: string, body: Partial<Agent>) => req<Agent>(`/agents/${id}`, { method: "PUT", body: JSON.stringify(body) }),
   delete: (id: string) => req(`/agents/${id}`, { method: "DELETE" }),
   regenerateToken: (id: string) => req<Agent>(`/agents/${id}/regenerate-token`, { method: "POST" }),
-  voicePreviewUrl: (id: string) => `${typeof window !== "undefined" ? window.location.origin : ""}${API_BASE}/agents/${id}/voice-preview`,
+  voicePreviewUrl: (id: string) => {
+    const base = apiBaseUrl();
+    const path = `/agents/${id}/voice-preview`;
+    if (base.startsWith("http")) return `${base}${path}`;
+    return `${typeof window !== "undefined" ? window.location.origin : ""}${base}${path}`;
+  },
 };
 
 // ── Bot Config ────────────────────────────────────────────────────────────────
