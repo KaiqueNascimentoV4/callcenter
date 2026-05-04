@@ -2,14 +2,10 @@ name: Build & Deploy
 
 on:
   push:
-    branches: [main]
+    branches: [main, master]
     paths-ignore:
       - "frontend/**"
       - "*.md"
-
-env:
-  REGISTRY: ghcr.io
-  IMAGE: ghcr.io/${{ github.repository_owner }}/callcenter
 
 jobs:
   build-push:
@@ -30,14 +26,14 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build e push da imagem
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: .
           push: true
           tags: |
-            ghcr.io/${{ github.repository_owner }}/callcenter:latest
-            ghcr.io/${{ github.repository_owner }}/callcenter:${{ github.sha }}
+            ghcr.io/kaiquenascimentov4/callcenter:latest
+            ghcr.io/kaiquenascimentov4/callcenter:${{ github.sha }}
 
       - name: Notifica Portainer para redeployar
-        run: |
-          curl -X POST "${{ secrets.PORTAINER_WEBHOOK }}"
+        if: ${{ secrets.PORTAINER_WEBHOOK != '' }}
+        run: curl -X POST "${{ secrets.PORTAINER_WEBHOOK }}"
