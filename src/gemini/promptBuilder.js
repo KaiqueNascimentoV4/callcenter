@@ -1,22 +1,31 @@
 /**
  * Monta o system prompt para cada lead.
- * Usa o template do bot_config se definido; caso contrário usa o padrão.
+ * `agentConfig` vem de getEffectiveAgentConfig (agente + fallback bot_config).
  */
-export function buildPromptForLead(lead, botConfig = {}) {
-  const empresa = botConfig.empresa_nome ?? "[EMPRESA]";
-  const template = botConfig.prompt_template?.trim();
+export function buildPromptForLead(lead, agentConfig = {}) {
+  const empresa = agentConfig.empresa_nome ?? "[EMPRESA]";
+  const template = agentConfig.prompt_template?.trim();
+
+  let ctxBlock = "";
+  const ec = agentConfig.empresa_contexto;
+  if (ec && typeof ec === "object" && Object.keys(ec).length) {
+    ctxBlock += `\n\nDados de contexto (empresa / agente):\n${JSON.stringify(ec, null, 2)}`;
+  }
+  const bg = agentConfig.instrucoes_background?.trim();
+  if (bg) ctxBlock += `\n\nInstruções de background do agente:\n${bg}`;
 
   if (template) {
-    return template
+    let t = template
       .replace(/\{\{nome\}\}/g, lead.nome ?? "cliente")
       .replace(/\{\{empresa\}\}/g, lead.empresa ?? "não informada")
       .replace(/\{\{cargo\}\}/g, lead.cargo ?? "não informado")
       .replace(/\{\{origem\}\}/g, lead.origem ?? "não informada")
       .replace(/\{\{objetivo\}\}/g, lead.objetivo ?? "apresentar a empresa")
       .replace(/\{\{oferta\}\}/g, lead.oferta ?? "não especificado");
+    return t + ctxBlock;
   }
 
-  return `Você é um agente de voz da ${empresa}.
+  const base = `Você é um agente de voz da ${empresa}.
 
 Contexto da ligação:
 - Nome do contato: ${lead.nome ?? "cliente"}
@@ -43,4 +52,6 @@ Estilo:
 - Nunca invente dados.
 - Não pressione a pessoa.
 - Se a pessoa pedir para não ligar mais, classifique proxima_acao como "nao_contatar".`;
+
+  return ctxBlock ? ctxBlock.trim() + "\n\n" + base : base;
 }

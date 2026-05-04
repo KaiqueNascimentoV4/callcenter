@@ -1,5 +1,6 @@
 import "dotenv/config";
 import "./ws-polyfill.js";
+import { randomUUID } from "crypto";
 import express from "express";
 import cors from "cors"; // 👈 Biblioteca importada aqui
 import { createServer } from "http";
@@ -17,10 +18,28 @@ import {
   saveLeadInfoChave, getLeadInfoChave, bulkImportLeads,
 } from "./db/leads.js";
 import {
-  saveCallResult, appendTranscript,
-  listCallResults, getCallResultById, getTranscriptsByCallSid,
-  getStatsSummary, getStatsByDate,
+  saveCallResult,
+  listCallResults,
+  getCallResultById,
+  getTranscriptsByCallSid,
+  getTranscriptsConversation,
+  getStatsSummary,
+  getStatsByDate,
+  getStatsByAgent,
 } from "./db/callResults.js";
+import {
+  listAgents,
+  getAgentById,
+  createAgent,
+  updateAgent,
+  deleteAgent,
+  regenerateInboundToken,
+  getEffectiveAgentConfig,
+  getAgentByInboundToken,
+} from "./db/agents.js";
+import { debouncedAppendTranscript } from "./transcriptDebouncer.js";
+import { findPhoneInJson, getJsonPath } from "./util/webhookInbound.js";
+import { generateVoiceSamplePreview } from "./gemini/voicePreview.js";
 import { listCampaigns, getCampaignById, createCampaign, updateCampaign, deleteCampaign, getCampaignStats } from "./db/campaigns.js";
 import { getBotConfig, updateBotConfig } from "./db/botConfig.js";
 
@@ -80,15 +99,24 @@ app.post("/calls/start", async (req, res) => {
 // ─── Routes: Leads ───────────────────────────────────────────────────────────
 
 app.get("/leads", async (req, res) => {
-  const { page, limit, status, campaign_id, q } = req.query;
-  const result = await listLeads({ page: +page || 1, limit: +limit || 50, status, campaign_id, q });
+  const { page, limit, status, campaign_id, agent_id, q } = req.query;
+  const result = await listLeads({
+    page: +page || 1,
+    limit: +limit || 50,
+    status,
+    campaign_id,
+    agent_id,
+    q,
+  });
   res.json(result);
 });
 
 app.post("/leads", async (req, res) => {
-  const { id, nome, telefone } = req.body;
-  if (!id || !nome || !telefone) return res.status(400).json({ error: "id, nome e telefone são obrigatórios" });
-  const lead = await upsertLead(req.body);
+  const body = { ...req.body };
+  if (!body.id) body.id = randomUUID();
+  const { nome, telefone } = body;
+  if (!nome || !telefone) return res.status(400).json({ error: "nome e telefone são obrigatórios" });
+  const lead = await upsertLead(body);
   res.json(lead);
 });
 
@@ -127,8 +155,18 @@ app.post("/leads/import", async (req, res) => {
 // ─── Routes: Results / Transcripts ───────────────────────────────────────────
 
 app.get("/results", async (req, res) => {
-  const { page, limit, lead_id, interesse, humor, proxima_acao, from, to } = req.query;
-  const result = await listCallResults({ page: +page || 1, limit: +limit || 50, lead_id, interesse, humor, proxima_acao, from, to });
+  const { page, limit, lead_id, agent_id, interesse, humor, proxima_acao, from, to } = req.query;
+  const result = await listCallResults({
+    page: +page || 1,
+    limit: +limit || 50,
+    lead_id,
+    agent_id,
+    interesse,
+    humor,
+    proxima_acao,
+    from,
+    to,
+  });
   res.json(result);
 });
 
@@ -140,6 +178,11 @@ app.get("/results/:id", async (req, res) => {
 
 app.get("/transcripts/:callSid", async (req, res) => {
   const data = await getTranscriptsByCallSid(req.params.callSid);
+  res.json(data);
+});
+
+app.get("/transcripts/:callSid/conversation", async (req, res) => {
+  const data = await getTranscriptsConversation(req.params.callSid);
   res.json(data);
 });
 
@@ -195,6 +238,107 @@ app.post("/campaigns/:id/dispatch", async (req, res) => {
   res.json({ dispatched: results.length, results });
 });
 
+// ─── Routes: Agents ───────────────────────────────────────────────────────────
+
+app.get("/agents", async (req, res) => {
+  const all = req.query.include_inactive === "true";
+  res.json(await listAgents({ includeInactive: all }));
+});
+
+app.get("/agents/:id/voice-preview", async (req, res) => {
+  const agent = await getAgentById(req.params.id);
+  if (!agent) return res.status(404).json({ error: "Agente não encontrado" });
+  const merged = await getEffectiveAgentConfig(agent);
+  const sample = await generateVoiceSamplePreview({
+    voice: merged.voz,
+    model: merged.modelo_gemini,
+  });
+  if (!sample?.base64) {
+    return res.status(503).json({
+      error:
+        "Preview de voz indisponível. Verifique GEMINI_API_KEY e o modelo; tente gemini-2.0-flash no agente.",
+    });
+  }
+  const buf = Buffer.from(sample.base64, "base64");
+  const ct = sample.mimeType?.split(";")[0]?.trim() || "audio/L16";
+  res.setHeader("Content-Type", ct);
+  res.send(buf);
+});
+
+app.get("/agents/:id", async (req, res) => {
+  const row = await getAgentById(req.params.id);
+  if (!row) return res.status(404).json({ error: "Não encontrado" });
+  res.json(row);
+});
+
+app.post("/agents", async (req, res) => {
+  try {
+    res.json(await createAgent(req.body));
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+app.put("/agents/:id", async (req, res) => {
+  try {
+    res.json(await updateAgent(req.params.id, req.body));
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+app.delete("/agents/:id", async (req, res) => {
+  await deleteAgent(req.params.id);
+  res.json({ ok: true });
+});
+
+app.post("/agents/:id/regenerate-token", async (req, res) => {
+  res.json(await regenerateInboundToken(req.params.id));
+});
+
+// ─── Webhook entrada (JSON livre → lead + ligação) ────────────────────────────
+
+app.post("/hooks/inbound/:token", async (req, res) => {
+  const agent = await getAgentByInboundToken(req.params.token);
+  if (!agent?.ativo) return res.status(404).json({ error: "Token inválido" });
+
+  const raw = req.body;
+  let phone =
+    (agent.telefone_json_path && getJsonPath(raw, agent.telefone_json_path)) || null;
+  if (typeof phone !== "string") phone = findPhoneInJson(raw);
+
+  if (!phone) {
+    return res.status(400).json({
+      error:
+        "Telefone E.164 não encontrado. Configure telefone_json_path no agente (ex.: $.telefone) ou inclua +55... no JSON.",
+    });
+  }
+
+  const nomeGuess =
+    getJsonPath(raw, "$.nome") ??
+    getJsonPath(raw, "nome") ??
+    getJsonPath(raw, "$.name") ??
+    "Lead";
+
+  const lead = await upsertLead({
+    id: randomUUID(),
+    nome: String(nomeGuess),
+    telefone: phone,
+    agent_id: agent.id,
+    payload_extras: typeof raw === "object" && raw !== null ? raw : { payload: raw },
+    status: "novo",
+    tentativas: 0,
+  });
+
+  try {
+    const call = await createCall({ to: lead.telefone, leadId: lead.id });
+    res.json({ ok: true, leadId: lead.id, callSid: call.sid, status: call.status });
+  } catch (err) {
+    console.error("[hooks/inbound]", err);
+    res.status(500).json({ error: err.message, leadId: lead.id });
+  }
+});
+
 // ─── Routes: Bot Config ──────────────────────────────────────────────────────
 
 app.get("/bot-config", async (_req, res) => {
@@ -207,12 +351,22 @@ app.put("/bot-config", async (req, res) => {
 
 // ─── Routes: Stats ───────────────────────────────────────────────────────────
 
-app.get("/stats/summary", async (_req, res) => {
-  res.json(await getStatsSummary());
+app.get("/stats/summary", async (req, res) => {
+  res.json(await getStatsSummary({ agent_id: req.query.agent_id }));
 });
 
 app.get("/stats/by-date", async (req, res) => {
-  res.json(await getStatsByDate({ from: req.query.from, to: req.query.to }));
+  res.json(
+    await getStatsByDate({
+      from: req.query.from,
+      to: req.query.to,
+      agent_id: req.query.agent_id,
+    })
+  );
+});
+
+app.get("/stats/by-agent", async (req, res) => {
+  res.json(await getStatsByAgent({ from: req.query.from, to: req.query.to }));
 });
 
 // ─── WebSocket /media ────────────────────────────────────────────────────────
@@ -226,6 +380,8 @@ wss.on("connection", (twilioWs) => {
   let streamSid = null;
   let callSid = null;
   let leadId = null;
+  let wsAgentId = null;
+  let webhookSaidaUrl = null;
   let geminiSession = null;
   let botConfig = null;
 
@@ -276,13 +432,13 @@ wss.on("connection", (twilioWs) => {
     const inputText = geminiMsg.serverContent?.inputTranscription?.text;
     if (inputText) {
       console.log(`[Trans] Usuário: ${inputText}`);
-      appendTranscript(callSid, "user", inputText);
+      debouncedAppendTranscript(callSid, "user", inputText);
     }
 
     const outputText = geminiMsg.serverContent?.outputTranscription?.text;
     if (outputText) {
       console.log(`[Trans] Agente: ${outputText}`);
-      appendTranscript(callSid, "agent", outputText);
+      debouncedAppendTranscript(callSid, "agent", outputText);
     }
 
     if (geminiMsg.toolCall?.functionCalls) {
@@ -290,17 +446,32 @@ wss.on("connection", (twilioWs) => {
         if (fc.name === "salvar_resultado_ligacao") {
           console.log("[FC] salvar_resultado_ligacao", fc.args);
           try {
-            await saveCallResult({ callSid, leadId, ...fc.args });
+            await saveCallResult({
+              callSid,
+              leadId,
+              agentId: wsAgentId,
+              ...fc.args,
+            });
           } catch (err) {
             console.error("[FC] Erro ao salvar resultado", err);
           }
+
+          const webhookPayload = { callSid, leadId, agentId: wsAgentId, ...fc.args };
 
           if (process.env.N8N_WEBHOOK_URL) {
             fetch(process.env.N8N_WEBHOOK_URL, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ callSid, leadId, ...fc.args }),
-            }).catch(e => console.error("[n8n]", e));
+              body: JSON.stringify(webhookPayload),
+            }).catch((e) => console.error("[n8n]", e));
+          }
+
+          if (webhookSaidaUrl) {
+            fetch(webhookSaidaUrl, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(webhookPayload),
+            }).catch((e) => console.error("[webhook agente]", e));
           }
 
           geminiSession?.sendToolResponse({
@@ -334,28 +505,31 @@ wss.on("connection", (twilioWs) => {
         streamSid = msg.start.streamSid;
         callSid = msg.start.callSid;
         leadId = msg.start.customParameters?.leadId;
+        wsAgentId = null;
+        webhookSaidaUrl = null;
         console.log(`[WS] start — callSid=${callSid} leadId=${leadId}`);
 
-        const [lead, config] = await Promise.all([
-          leadId ? getLeadById(leadId) : null,
-          getBotConfig(),
-        ]);
-        botConfig = config;
+        const lead = leadId ? await getLeadById(leadId) : null;
+        wsAgentId = lead?.agent_id ?? null;
+        const agentRow = wsAgentId ? await getAgentById(wsAgentId) : null;
+        webhookSaidaUrl = agentRow?.webhook_saida_url ?? null;
 
-        const systemPrompt = buildPromptForLead(lead ?? { nome: "cliente" }, config);
+        botConfig = await getEffectiveAgentConfig(agentRow);
+
+        const systemPrompt = buildPromptForLead(lead ?? { nome: "cliente" }, botConfig);
 
         try {
           geminiSession = await createLiveSession({
             systemPrompt,
-            model: config.modelo_gemini,
-            voice: config.voz,
+            model: botConfig.modelo_gemini,
+            voice: botConfig.voz,
             onMessage: handleGeminiMessage,
             onError: (e) => console.error("[Gemini] error", e),
             onClose: (e) => console.log("[Gemini] closed", e?.reason ?? ""),
           });
           console.log("[Gemini] Sessão aberta");
 
-          if (config.quem_fala_primeiro === "agente") {
+          if (botConfig.quem_fala_primeiro === "agente") {
             setTimeout(() => {
               geminiSession?.sendClientContent({
                 turns: [{ role: "user", parts: [{ text: "A chamada foi atendida. Inicie a conversa agora." }] }],
@@ -364,11 +538,10 @@ wss.on("connection", (twilioWs) => {
             }, 500);
           }
 
-          // Timeout da ligação
-          const timeout = (config.timeout_segundos ?? 120) * 1000;
+          const timeout = (botConfig.timeout_segundos ?? 120) * 1000;
           setTimeout(() => {
             if (geminiSession) {
-              console.log(`[WS] Timeout de ${config.timeout_segundos}s atingido`);
+              console.log(`[WS] Timeout de ${botConfig.timeout_segundos}s atingido`);
               geminiSession.close();
             }
           }, timeout);

@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { leadsApi, type Lead } from "@/lib/api";
+import { leadsApi, agentsApi, type Lead } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,23 +19,41 @@ const STATUS_LABELS: Record<string, string> = {
   nao_contatar: "Não contatar", arquivado: "Arquivado",
 };
 
-const EMPTY: Partial<Lead> = { id: "", nome: "", telefone: "", empresa: "", cargo: "", origem: "", objetivo: "", oferta: "", status: "novo" };
+const EMPTY: Partial<Lead> = {
+  nome: "",
+  telefone: "",
+  empresa: "",
+  cargo: "",
+  origem: "",
+  objetivo: "",
+  oferta: "",
+  status: "novo",
+  agent_id: undefined,
+};
 
 export default function LeadsPage() {
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [agentFilter, setAgentFilter] = useState<string>("all");
   const [form, setForm] = useState<Partial<Lead>>(EMPTY);
   const [openForm, setOpenForm] = useState(false);
   const [selectedLead, setSelectedLead] = useState<string | null>(null);
   const [newInfo, setNewInfo] = useState({ chave: "", valor: "" });
 
+  const { data: agentsList } = useQuery({
+    queryKey: ["agents", "for-leads"],
+    queryFn: () => agentsApi.list(false),
+  });
+
   const { data, isLoading } = useQuery({
-    queryKey: ["leads", search, statusFilter],
-    queryFn: () => leadsApi.list({
-      ...(search ? { q: search } : {}),
-      ...(statusFilter !== "all" ? { status: statusFilter } : {}),
-    }),
+    queryKey: ["leads", search, statusFilter, agentFilter],
+    queryFn: () =>
+      leadsApi.list({
+        ...(search ? { q: search } : {}),
+        ...(statusFilter !== "all" ? { status: statusFilter } : {}),
+        ...(agentFilter !== "all" ? { agent_id: agentFilter } : {}),
+      }),
   });
 
   const { data: detail } = useQuery({
@@ -45,9 +63,20 @@ export default function LeadsPage() {
   });
 
   const save = useMutation({
-    mutationFn: (l: Partial<Lead>) => l.id && data?.data?.find(x => x.id === l.id)
-      ? leadsApi.update(l.id, l) : leadsApi.create(l),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["leads"] }); setOpenForm(false); toast.success("Lead salvo!"); },
+    mutationFn: async (l: Partial<Lead>) => {
+      const payload = { ...l };
+      const editingExisting = Boolean(l.id && data?.data?.some((x) => x.id === l.id));
+      if (!editingExisting) {
+        delete (payload as Partial<Lead>).id;
+        return leadsApi.create(payload);
+      }
+      return leadsApi.update(l.id!, payload);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["leads"] });
+      setOpenForm(false);
+      toast.success("Lead salvo!");
+    },
     onError: (e: Error) => toast.error(e.message),
   });
 
@@ -91,6 +120,17 @@ export default function LeadsPage() {
             {Object.entries(STATUS_LABELS).map(([v, l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}
           </SelectContent>
         </Select>
+        <Select value={agentFilter} onValueChange={(v) => setAgentFilter(v ?? "all")}>
+          <SelectTrigger className="w-48 bg-[#111] border-[#2a2a2a] text-[#ccc]"><SelectValue placeholder="Agente" /></SelectTrigger>
+          <SelectContent className="bg-[#161616] border-[#2a2a2a]">
+            <SelectItem value="all">Todos os agentes</SelectItem>
+            {agentsList?.map((a) => (
+              <SelectItem key={a.id} value={a.id}>
+                {a.nome}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </motion.div>
 
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}
@@ -99,21 +139,22 @@ export default function LeadsPage() {
         <table className="w-full text-sm">
           <thead className="border-b border-[#1e1e1e]">
             <tr>
-              {["Nome", "Empresa", "Telefone", "Status", "Tentativas", ""].map(h => (
+              {["Nome", "Empresa", "Telefone", "Agente", "Status", "Tentativas", ""].map((h) => (
                 <th key={h} className="text-left px-4 py-3 font-medium text-[#555] text-[11px] uppercase tracking-wide">{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {isLoading ? (
-              <tr><td colSpan={6} className="text-center py-12 text-[#555]">Carregando…</td></tr>
+              <tr><td colSpan={7} className="text-center py-12 text-[#555]">Carregando…</td></tr>
             ) : data?.data?.length === 0 ? (
-              <tr><td colSpan={6} className="text-center py-12 text-[#555]">Nenhum lead encontrado</td></tr>
+              <tr><td colSpan={7} className="text-center py-12 text-[#555]">Nenhum lead encontrado</td></tr>
             ) : data?.data?.map((lead) => (
               <tr key={lead.id} className="border-b border-[#1a1a1a] last:border-0 hover:bg-[#161616] transition-colors">
                 <td className="px-4 py-3 font-medium text-white">{lead.nome}</td>
                 <td className="px-4 py-3 text-[#888]">{lead.empresa ?? "—"}</td>
                 <td className="px-4 py-3 text-[#888]">{lead.telefone}</td>
+                <td className="px-4 py-3 text-[#888]">{lead.agents?.nome ?? "—"}</td>
                 <td className="px-4 py-3">
                   <Badge variant="outline" className={statusBadge(lead.status)}>{STATUS_LABELS[lead.status]}</Badge>
                 </td>
@@ -147,10 +188,28 @@ export default function LeadsPage() {
       {/* Form dialog */}
       <Dialog open={openForm} onOpenChange={setOpenForm}>
         <DialogContent className="max-w-lg bg-[#111] border-[#2a2a2a]">
-          <DialogHeader><DialogTitle className="text-white">{form.nome ? "Editar lead" : "Novo lead"}</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle className="text-white">{form.id ? "Editar lead" : "Novo lead"}</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3 py-2">
+            <div className="col-span-2">
+              <Label className="text-xs mb-1 text-[#888]">Agente</Label>
+              <Select
+                value={form.agent_id ?? "none"}
+                onValueChange={(v) => setForm((f) => ({ ...f, agent_id: v === "none" ? undefined : v }))}
+              >
+                <SelectTrigger className="bg-[#1a1a1a] border-[#2a2a2a] text-[#ccc]">
+                  <SelectValue placeholder="Padrão global" />
+                </SelectTrigger>
+                <SelectContent className="bg-[#161616] border-[#2a2a2a]">
+                  <SelectItem value="none">Padrão global (bot)</SelectItem>
+                  {agentsList?.map((a) => (
+                    <SelectItem key={a.id} value={a.id}>
+                      {a.nome}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             {[
-              { key: "id", label: "ID único", placeholder: "lead_001" },
               { key: "nome", label: "Nome *", placeholder: "João Silva" },
               { key: "telefone", label: "Telefone *", placeholder: "+5511999999999" },
               { key: "empresa", label: "Empresa", placeholder: "TechCorp" },
@@ -194,15 +253,16 @@ export default function LeadsPage() {
             <div className="mt-4 space-y-5 text-sm">
               <div className="grid grid-cols-2 gap-y-3 text-[#888]">
                 {[
+                  ["Agente", detail.agents?.nome ?? "Padrão global"],
                   ["Empresa", detail.empresa ?? "—"],
                   ["Cargo", detail.cargo ?? "—"],
                   ["Telefone", detail.telefone],
                   ["Tentativas", String(detail.tentativas)],
                 ].map(([k, v]) => (
-                  <>
-                    <span key={k} className="font-medium text-[#ccc]">{k}</span>
-                    <span key={v}>{v}</span>
-                  </>
+                  <span key={k} className="contents">
+                    <span className="font-medium text-[#ccc]">{k}</span>
+                    <span>{v}</span>
+                  </span>
                 ))}
                 <span className="font-medium text-[#ccc]">Status</span>
                 <Badge variant="outline" className={statusBadge(detail.status)}>{STATUS_LABELS[detail.status]}</Badge>

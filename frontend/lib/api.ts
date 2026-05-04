@@ -1,6 +1,5 @@
 "use client";
 
-/** Sempre relativo ao domínio do Next → rewrite em `next.config.ts` (/api-ext → API). Nunca usar URL absoluta aqui (evita CORS e env embutido no bundle). */
 const API_BASE = "/api-ext";
 
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
@@ -40,7 +39,7 @@ export const leadsApi = {
     }),
 };
 
-// ── Results ──────────────────────────────────────────────────────────────────
+// ── Results ────────────────────────────────────────────────────────────────
 
 export const resultsApi = {
   list: (params?: Record<string, string>) => {
@@ -49,9 +48,14 @@ export const resultsApi = {
   },
   get: (id: string) => req<CallResult>(`/results/${id}`),
   transcripts: (callSid: string) => req<Transcript[]>(`/transcripts/${callSid}`),
+  conversation: (callSid: string) =>
+    req<{
+      raw: Transcript[];
+      bubbles: { role: "user" | "agent"; texto: string; ts: string; ts_end?: string }[];
+    }>(`/transcripts/${callSid}/conversation`),
 };
 
-// ── Campaigns ─────────────────────────────────────────────────────────────────
+// ── Campaigns ─────────────────────────────────────────────────────────────
 
 export const campaignsApi = {
   list: () => req<Campaign[]>("/campaigns"),
@@ -64,6 +68,19 @@ export const campaignsApi = {
   dispatch: (id: string) => req(`/campaigns/${id}/dispatch`, { method: "POST" }),
 };
 
+// ── Agents ─────────────────────────────────────────────────────────────────
+
+export const agentsApi = {
+  list: (includeInactive?: boolean) =>
+    req<Agent[]>(`/agents${includeInactive ? "?include_inactive=true" : ""}`),
+  get: (id: string) => req<Agent>(`/agents/${id}`),
+  create: (body: Partial<Agent>) => req<Agent>("/agents", { method: "POST", body: JSON.stringify(body) }),
+  update: (id: string, body: Partial<Agent>) => req<Agent>(`/agents/${id}`, { method: "PUT", body: JSON.stringify(body) }),
+  delete: (id: string) => req(`/agents/${id}`, { method: "DELETE" }),
+  regenerateToken: (id: string) => req<Agent>(`/agents/${id}/regenerate-token`, { method: "POST" }),
+  voicePreviewUrl: (id: string) => `${typeof window !== "undefined" ? window.location.origin : ""}${API_BASE}/agents/${id}/voice-preview`,
+};
+
 // ── Bot Config ────────────────────────────────────────────────────────────────
 
 export const configApi = {
@@ -71,17 +88,24 @@ export const configApi = {
   update: (body: Partial<BotConfig>) => req<BotConfig>("/bot-config", { method: "PUT", body: JSON.stringify(body) }),
 };
 
-// ── Stats ─────────────────────────────────────────────────────────────────────
+// ── Stats ─────────────────────────────────────────────────────────────────
 
 export const statsApi = {
-  summary: () => req<StatsSummary>("/stats/summary"),
-  byDate: (params?: { from?: string; to?: string }) => {
+  summary: (params?: { agent_id?: string }) => {
+    const qs = params?.agent_id ? `?agent_id=${encodeURIComponent(params.agent_id)}` : "";
+    return req<StatsSummary>(`/stats/summary${qs}`);
+  },
+  byDate: (params?: { from?: string; to?: string; agent_id?: string }) => {
     const qs = params ? "?" + new URLSearchParams(params as Record<string, string>).toString() : "";
     return req<DateStat[]>(`/stats/by-date${qs}`);
   },
+  byAgent: (params?: { from?: string; to?: string }) => {
+    const qs = params ? "?" + new URLSearchParams(params as Record<string, string>).toString() : "";
+    return req<AgentStatRow[]>(`/stats/by-agent${qs}`);
+  },
 };
 
-// ── Types ─────────────────────────────────────────────────────────────────────
+// ── Types ─────────────────────────────────────────────────────────────────
 
 export type Lead = {
   id: string;
@@ -93,10 +117,39 @@ export type Lead = {
   objetivo?: string;
   oferta?: string;
   campaign_id?: string;
+  agent_id?: string | null;
+  payload_extras?: Record<string, unknown>;
   status: "novo" | "contactado" | "convertido" | "nao_contatar" | "arquivado";
   ultima_ligacao_em?: string;
   tentativas: number;
   criado_em: string;
+  agents?: { nome: string } | null;
+};
+
+export type Agent = {
+  id: string;
+  nome: string;
+  ativo: boolean;
+  empresa_nome?: string | null;
+  empresa_contexto?: Record<string, unknown> | null;
+  prompt_template?: string;
+  instrucoes_background?: string;
+  modelo_gemini?: string;
+  voz?: string;
+  timeout_segundos?: number;
+  quem_fala_primeiro?: "agente" | "usuario";
+  webhook_saida_url?: string | null;
+  webhook_entrada_token?: string | null;
+  telefone_json_path?: string | null;
+  criado_em?: string;
+  atualizado_em?: string;
+};
+
+export type AgentStatRow = {
+  agent_id: string | null;
+  agent_nome: string;
+  total: number;
+  alto: number;
 };
 
 export type InfoChave = { id: number; lead_id: string; chave: string; valor: string; criado_em: string };
@@ -105,6 +158,7 @@ export type CallResult = {
   id: number;
   call_sid: string;
   lead_id: string;
+  agent_id?: string | null;
   confirmado: boolean;
   pessoa_correta: boolean;
   interesse: "alto" | "medio" | "baixo" | "sem_interesse" | "incerto";
@@ -115,6 +169,7 @@ export type CallResult = {
   transcricao_agente: string;
   criado_em: string;
   leads?: { nome: string; empresa?: string; telefone?: string };
+  agents?: { nome: string } | null;
 };
 
 export type Transcript = { id: number; call_sid: string; role: "user" | "agent"; texto: string; ts: string };

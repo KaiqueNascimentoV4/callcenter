@@ -1,15 +1,16 @@
 import { supabase } from "./supabase.js";
 
 export async function getLeadById(id) {
-  const { data } = await supabase.from("leads").select("*").eq("id", id).single();
+  const { data } = await supabase.from("leads").select("*, agents(*)").eq("id", id).single();
   return data;
 }
 
-export async function listLeads({ page = 1, limit = 50, status, campaign_id, q } = {}) {
-  let query = supabase.from("leads").select("*, campaigns(nome)", { count: "exact" });
+export async function listLeads({ page = 1, limit = 50, status, campaign_id, agent_id, q } = {}) {
+  let query = supabase.from("leads").select("*, campaigns(nome), agents(nome)", { count: "exact" });
 
   if (status) query = query.eq("status", status);
   if (campaign_id) query = query.eq("campaign_id", campaign_id);
+  if (agent_id) query = query.eq("agent_id", agent_id);
   if (q) query = query.or(`nome.ilike.%${q}%,empresa.ilike.%${q}%,telefone.ilike.%${q}%`);
 
   const from = (page - 1) * limit;

@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { LayoutDashboard, Users, PhoneCall, Settings, Megaphone, LogOut } from "lucide-react";
+import { LayoutDashboard, Users, PhoneCall, Settings, Megaphone, LogOut, Bot } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 import { getSupabase } from "@/lib/supabase";
@@ -9,6 +9,7 @@ import { useState } from "react";
 
 const links = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/agents", label: "Agentes", icon: Bot },
   { href: "/leads", label: "Leads", icon: Users },
   { href: "/results", label: "Ligações", icon: PhoneCall },
   { href: "/campaigns", label: "Campanhas", icon: Megaphone },
