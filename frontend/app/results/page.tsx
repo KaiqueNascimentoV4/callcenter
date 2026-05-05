@@ -51,7 +51,7 @@ export default function ResultsPage() {
   }
 
   return (
-    <div className="space-y-6 max-w-6xl">
+    <div className="page-shell">
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }}>
         <h1 className="text-2xl font-semibold tracking-tight text-foreground">Ligações</h1>
         <p className="text-muted-foreground text-sm mt-1">Histórico e transcrições (agregadas por fala)</p>

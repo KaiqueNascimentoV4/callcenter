@@ -1,17 +1,42 @@
 import { supabase } from "./supabase.js";
 
+export function normalizePhone(phone) {
+  const digits = String(phone ?? "").replace(/\D+/g, "");
+  return digits ? `+${digits}` : null;
+}
+
+function withNormalizedPhone(lead = {}) {
+  const normalized = normalizePhone(lead.telefone);
+  return {
+    ...lead,
+    ...(normalized ? { telefone: normalized, telefone_normalizado: normalized } : {}),
+  };
+}
+
 export async function getLeadById(id) {
-  const { data } = await supabase.from("leads").select("*, agents(*)").eq("id", id).single();
+  const { data } = await supabase
+    .from("leads")
+    .select("id, nome, empresa, cargo, telefone, telefone_normalizado, origem, objetivo, oferta, campaign_id, agent_id, payload_extras, status, ultima_ligacao_em, tentativas, criado_em, agents(id, nome, voz, modelo_gemini, webhook_entrada_token)")
+    .eq("id", id)
+    .single();
   return data;
 }
 
 export async function listLeads({ page = 1, limit = 50, status, campaign_id, agent_id, q } = {}) {
-  let query = supabase.from("leads").select("*, campaigns(nome), agents(nome)", { count: "exact" });
+  let query = supabase
+    .from("leads")
+    .select("id, nome, empresa, cargo, telefone, campaign_id, agent_id, status, ultima_ligacao_em, tentativas, criado_em, campaigns(id, nome), agents(id, nome)", { count: "exact" });
 
   if (status) query = query.eq("status", status);
   if (campaign_id) query = query.eq("campaign_id", campaign_id);
   if (agent_id) query = query.eq("agent_id", agent_id);
-  if (q) query = query.or(`nome.ilike.%${q}%,empresa.ilike.%${q}%,telefone.ilike.%${q}%`);
+  if (q) {
+    const normalized = normalizePhone(q);
+    const phoneOr = normalized
+      ? `telefone.ilike.%${q}%,telefone_normalizado.eq.${normalized}`
+      : `telefone.ilike.%${q}%`;
+    query = query.or(`nome.ilike.%${q}%,empresa.ilike.%${q}%,${phoneOr}`);
+  }
 
   const from = (page - 1) * limit;
   query = query.order("criado_em", { ascending: false }).range(from, from + limit - 1);
@@ -22,9 +47,10 @@ export async function listLeads({ page = 1, limit = 50, status, campaign_id, age
 }
 
 export async function upsertLead(lead) {
+  const row = withNormalizedPhone(lead);
   const { data, error } = await supabase
     .from("leads")
-    .upsert(lead, { onConflict: "id" })
+    .upsert(row, { onConflict: "id" })
     .select()
     .single();
   if (error) throw error;
@@ -32,9 +58,10 @@ export async function upsertLead(lead) {
 }
 
 export async function updateLead(id, fields) {
+  const row = withNormalizedPhone(fields);
   const { data, error } = await supabase
     .from("leads")
-    .update(fields)
+    .update(row)
     .eq("id", id)
     .select()
     .single();
@@ -67,12 +94,30 @@ export async function getLeadInfoChave(leadId) {
 }
 
 export async function bulkImportLeads(leads) {
+  const rows = (leads ?? []).map(withNormalizedPhone);
   const { data, error } = await supabase
     .from("leads")
-    .upsert(leads, { onConflict: "id" })
+    .upsert(rows, { onConflict: "id" })
     .select();
   if (error) throw error;
   return data;
+}
+
+export async function getLatestLeadByPhone(phone) {
+  const normalized = normalizePhone(phone);
+  if (!normalized) return null;
+
+  const { data, error } = await supabase
+    .from("leads")
+    .select("id, nome, empresa, cargo, telefone, telefone_normalizado, agent_id, campaign_id, payload_extras, status, ultima_ligacao_em, criado_em")
+    .eq("telefone_normalizado", normalized)
+    .order("ultima_ligacao_em", { ascending: false, nullsFirst: false })
+    .order("criado_em", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data ?? null;
 }
 
 export async function incrementLeadAttempts(id) {

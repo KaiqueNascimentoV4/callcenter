@@ -13,6 +13,7 @@ import { statusBadge, interesseBadge } from "@/lib/badges";
 import { Phone, Plus, Trash2, Pencil, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
+import { PageHeader } from "@/components/app/page-header";
 
 const STATUS_LABELS: Record<string, string> = {
   novo: "Novo", contactado: "Contactado", convertido: "Convertido",
@@ -108,17 +109,18 @@ export default function LeadsPage() {
   });
 
   return (
-    <div className="space-y-6 max-w-6xl">
-      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }}
-        className="flex items-center justify-between"
-      >
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Leads</h1>
-          <p className="text-muted-foreground text-sm mt-1">{data?.count ?? 0} leads cadastrados</p>
-        </div>
-        <Button onClick={() => { setForm(EMPTY); setOpenForm(true); }} className="bg-primary hover:bg-primary/90 text-foreground border-0">
-          <Plus className="w-4 h-4 mr-1.5" /> Novo lead
-        </Button>
+    <div className="page-shell">
+      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }}>
+        <PageHeader
+          eyebrow="Operação / Leads"
+          title="Leads"
+          description={`${data?.count ?? 0} leads cadastrados, com associação a agente, campanha e histórico operacional.`}
+          actions={
+            <Button onClick={() => { setForm(EMPTY); setOpenForm(true); }} className="bg-primary hover:bg-primary/90 text-foreground border-0">
+              <Plus className="w-4 h-4 mr-1.5" /> Novo lead
+            </Button>
+          }
+        />
       </motion.div>
 
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.1 }} className="flex gap-3">

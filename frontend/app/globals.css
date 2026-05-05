@@ -42,6 +42,9 @@
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) * 1.4);
+  --shadow-xs: var(--shadow-xs);
+  --shadow-sm: var(--shadow-sm);
+  --shadow-md: var(--shadow-md);
 }
 
 /* ── Light mode (default) ─────────────────────────────────────────────────── */
@@ -69,7 +72,10 @@
   --chart-3: #ff8855;
   --chart-4: #ffaa88;
   --chart-5: #ffccbb;
-  --radius: 0.5rem;
+  --radius: 0.75rem;
+  --shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.04);
+  --shadow-sm: 0 8px 24px rgba(15, 23, 42, 0.06);
+  --shadow-md: 0 16px 48px rgba(15, 23, 42, 0.1);
   --sidebar: #fafafa;
   --sidebar-foreground: #0a0a0a;
   --sidebar-primary: #e03d00;
@@ -105,6 +111,9 @@
   --chart-3: #ff8855;
   --chart-4: #ffaa88;
   --chart-5: #ffccbb;
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.18);
+  --shadow-sm: 0 10px 30px rgba(0, 0, 0, 0.24);
+  --shadow-md: 0 18px 54px rgba(0, 0, 0, 0.34);
   --sidebar: #0c0c0c;
   --sidebar-foreground: #f0f0f0;
   --sidebar-primary: #ff4400;
@@ -122,6 +131,7 @@
   body {
     @apply bg-background text-foreground;
     font-feature-settings: "rlig" 1, "calt" 1;
+    min-height: 100vh;
   }
   html {
     @apply font-sans;
@@ -140,5 +150,19 @@
   }
   ::-webkit-scrollbar-thumb:hover {
     background: var(--primary);
+  }
+}
+
+@layer utilities {
+  .page-shell {
+    @apply mx-auto flex w-full max-w-[1680px] flex-col gap-6;
+  }
+
+  .panel-grid {
+    @apply grid gap-6 xl:grid-cols-[minmax(0,1.55fr)_360px];
+  }
+
+  .surface-soft {
+    box-shadow: var(--shadow-xs);
   }
 }

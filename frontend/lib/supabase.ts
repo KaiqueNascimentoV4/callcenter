@@ -13,6 +13,6 @@ export function getSupabase() {
 
 export const supabase = new Proxy({} as ReturnType<typeof createBrowserClient>, {
   get(_target, prop) {
-    return (getSupabase() as any)[prop];
+    return Reflect.get(getSupabase() as object, prop);
   },
 });

@@ -2,6 +2,22 @@ import { randomBytes } from "crypto";
 import { supabase } from "./supabase.js";
 import { getBotConfig } from "./botConfig.js";
 
+function buildInboundToken() {
+  return randomBytes(24).toString("hex");
+}
+
+async function ensureInboundToken(agent) {
+  if (!agent) return null;
+  if (agent.webhook_entrada_token) return agent;
+  return updateAgent(agent.id, { webhook_entrada_token: buildInboundToken() });
+}
+
+async function getAgentRow(id) {
+  if (!id) return null;
+  const { data } = await supabase.from("agents").select("*").eq("id", id).single();
+  return data;
+}
+
 /**
  * Mescla agente + fallback global (bot_config id=1).
  */
@@ -43,9 +59,7 @@ export async function getEffectiveAgentConfig(agentRow) {
 }
 
 export async function getAgentById(id) {
-  if (!id) return null;
-  const { data } = await supabase.from("agents").select("*").eq("id", id).single();
-  return data;
+  return ensureInboundToken(await getAgentRow(id));
 }
 
 export async function listAgents({ includeInactive = false } = {}) {
@@ -53,11 +67,11 @@ export async function listAgents({ includeInactive = false } = {}) {
   if (!includeInactive) q = q.eq("ativo", true);
   const { data, error } = await q;
   if (error) throw error;
-  return data ?? [];
+  return Promise.all((data ?? []).map(ensureInboundToken));
 }
 
 export async function createAgent(fields) {
-  const token = randomBytes(24).toString("hex");
+  const token = buildInboundToken();
   const row = {
     ...fields,
     webhook_entrada_token: fields.webhook_entrada_token ?? token,
@@ -69,14 +83,20 @@ export async function createAgent(fields) {
 }
 
 export async function updateAgent(id, fields) {
+  const current = await getAgentRow(id);
+  const webhookToken = current?.webhook_entrada_token ?? buildInboundToken();
   const { data, error } = await supabase
     .from("agents")
-    .update({ ...fields, atualizado_em: new Date().toISOString() })
+    .update({
+      ...fields,
+      webhook_entrada_token: fields.webhook_entrada_token ?? webhookToken,
+      atualizado_em: new Date().toISOString(),
+    })
     .eq("id", id)
     .select()
     .single();
   if (error) throw error;
-  return data;
+  return ensureInboundToken(data);
 }
 
 export async function deleteAgent(id) {
@@ -85,12 +105,12 @@ export async function deleteAgent(id) {
 }
 
 export async function regenerateInboundToken(id) {
-  const token = randomBytes(24).toString("hex");
+  const token = buildInboundToken();
   return updateAgent(id, { webhook_entrada_token: token });
 }
 
 export async function getAgentByInboundToken(token) {
   if (!token) return null;
   const { data } = await supabase.from("agents").select("*").eq("webhook_entrada_token", token).single();
-  return data;
+  return ensureInboundToken(data);
 }

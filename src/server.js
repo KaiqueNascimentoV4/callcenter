@@ -16,6 +16,7 @@ import { resamplePcm16 } from "./audio/resample.js";
 import {
   getLeadById, listLeads, upsertLead, updateLead, deleteLead,
   saveLeadInfoChave, getLeadInfoChave, bulkImportLeads,
+  normalizePhone,
 } from "./db/leads.js";
 import {
   saveCallResult,
@@ -23,6 +24,8 @@ import {
   getCallResultById,
   getTranscriptsByCallSid,
   getTranscriptsConversation,
+  getLatestResultByPhone,
+  getLatestConversationByPhone,
   getStatsSummary,
   getStatsByDate,
   getStatsByAgent,
@@ -39,6 +42,7 @@ import {
 } from "./db/agents.js";
 import { debouncedAppendTranscript } from "./transcriptDebouncer.js";
 import { findPhoneInJson, getJsonPath } from "./util/webhookInbound.js";
+import { normalizeLeadContext } from "./util/leadContext.js";
 import { generateVoiceSamplePreview } from "./gemini/voicePreview.js";
 import { listCampaigns, getCampaignById, createCampaign, updateCampaign, deleteCampaign, getCampaignStats } from "./db/campaigns.js";
 import { getBotConfig, updateBotConfig } from "./db/botConfig.js";
@@ -91,6 +95,144 @@ function twilioMiddleware(req, res, next) {
   );
   if (!valid) return res.status(403).send("Forbidden");
   next();
+}
+
+function firstNonEmptyString(...values) {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return undefined;
+}
+
+function buildLeadPayloadExtras(rawPayload, normalizedContext, metadata) {
+  const extras = typeof rawPayload === "object" && rawPayload !== null ? { ...rawPayload } : { payload: rawPayload };
+  if (normalizedContext.raw != null) extras.contexto_raw = normalizedContext.raw;
+  if (normalizedContext.object) extras.contexto_json = normalizedContext.object;
+  if (normalizedContext.text) extras.contexto_texto = normalizedContext.text;
+  if (metadata && typeof metadata === "object") extras.metadata = metadata;
+  return extras;
+}
+
+function buildDispatchResponse({ lead, call, agent }) {
+  return {
+    ok: true,
+    leadId: lead.id,
+    callSid: call.sid,
+    agentId: agent.id,
+    status: call.status,
+    telefone: lead.telefone,
+    createdAt: lead.criado_em ?? new Date().toISOString(),
+  };
+}
+
+async function dispatchLeadWithAgent({ agent, body, fallbackPhonePath }) {
+  if (!agent?.ativo) {
+    const err = new Error("Agente inválido ou inativo");
+    err.statusCode = 404;
+    throw err;
+  }
+
+  const raw = body ?? {};
+  const explicitPhone = firstNonEmptyString(raw.telefone, raw.phone, raw.to);
+  let phone =
+    explicitPhone ??
+    ((fallbackPhonePath || agent.telefone_json_path) && getJsonPath(raw, fallbackPhonePath || agent.telefone_json_path)) ??
+    null;
+  if (typeof phone !== "string") phone = findPhoneInJson(raw);
+
+  const normalizedPhone = normalizePhone(phone);
+  if (!normalizedPhone) {
+    const err = new Error("Telefone obrigatório em E.164. Envie `telefone` ou configure `telefone_json_path`.");
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const normalizedContext = normalizeLeadContext(raw.contexto);
+  const lead = await upsertLead({
+    id: raw.id ?? randomUUID(),
+    nome: firstNonEmptyString(raw.nome, raw.name, raw.contexto?.nome, raw.contexto?.name) ?? "Lead",
+    telefone: normalizedPhone,
+    empresa: firstNonEmptyString(raw.empresa, raw.company, raw.contexto?.empresa, raw.contexto?.company),
+    cargo: firstNonEmptyString(raw.cargo, raw.title, raw.contexto?.cargo, raw.contexto?.title),
+    origem: firstNonEmptyString(raw.origem, raw.source) ?? "api",
+    objetivo: firstNonEmptyString(raw.objetivo, raw.goal, raw.contexto?.objetivo),
+    oferta: firstNonEmptyString(raw.oferta, raw.offer, raw.contexto?.oferta),
+    campaign_id: raw.campaign_id ?? undefined,
+    agent_id: agent.id,
+    payload_extras: buildLeadPayloadExtras(raw, normalizedContext, raw.metadata),
+    status: "novo",
+    tentativas: raw.tentativas ?? 0,
+  });
+
+  const agentCfg = await getEffectiveAgentConfig(agent);
+  const call = await createCall({
+    to: lead.telefone,
+    leadId: lead.id,
+    campaignId: raw.campaign_id,
+    deteccaoVoicemail: agentCfg.deteccao_voicemail,
+  });
+
+  return { lead, call, agentCfg };
+}
+
+async function buildFinalWebhookPayload({ callSid, leadId, agentId, resultArgs }) {
+  const [lead, agent, conversation] = await Promise.all([
+    leadId ? getLeadById(leadId).catch(() => null) : null,
+    agentId ? getAgentById(agentId).catch(() => null) : null,
+    callSid ? getTranscriptsConversation(callSid).catch(() => ({ bubbles: [], raw: [] })) : { bubbles: [], raw: [] },
+  ]);
+
+  return {
+    lead: lead
+      ? {
+          id: lead.id,
+          nome: lead.nome,
+          empresa: lead.empresa,
+          cargo: lead.cargo,
+          telefone: lead.telefone,
+          agent_id: lead.agent_id,
+          campaign_id: lead.campaign_id,
+          status: lead.status,
+          ultima_ligacao_em: lead.ultima_ligacao_em,
+          payload_extras: lead.payload_extras ?? {},
+        }
+      : null,
+    agent: agent
+      ? {
+          id: agent.id,
+          nome: agent.nome,
+          empresa_nome: agent.empresa_nome,
+          voz: agent.voz,
+          modelo_gemini: agent.modelo_gemini,
+          webhook_token: agent.webhook_entrada_token,
+        }
+      : null,
+    call: {
+      sid: callSid,
+      leadId,
+      agentId,
+      finishedAt: new Date().toISOString(),
+    },
+    resultado: {
+      confirmado: resultArgs.confirmado,
+      pessoa_correta: resultArgs.pessoa_correta,
+      interesse: resultArgs.interesse,
+      humor: resultArgs.humor,
+      proxima_acao: resultArgs.proxima_acao,
+    },
+    resumo: resultArgs.resumo,
+    interesse: resultArgs.interesse,
+    humor: resultArgs.humor,
+    transcricao: conversation.bubbles ?? [],
+    transcricao_texto: (conversation.bubbles ?? [])
+      .map((item) => `${item.role === "agent" ? "Agente" : "Cliente"}: ${item.texto}`)
+      .join("\n"),
+    timestamps: {
+      generatedAt: new Date().toISOString(),
+      startedAt: conversation.bubbles?.[0]?.ts ?? null,
+      endedAt: conversation.bubbles?.at?.(-1)?.ts_end ?? conversation.bubbles?.at?.(-1)?.ts ?? null,
+    },
+  };
 }
 
 // ─── Routes: TwiML / calls ───────────────────────────────────────────────────
@@ -215,10 +357,118 @@ app.get("/results", async (req, res) => {
   res.json(result);
 });
 
+app.get("/results/by-phone", async (req, res) => {
+  const telefone = String(req.query.telefone ?? "");
+  if (!normalizePhone(telefone)) return res.status(400).json({ error: "telefone obrigatÃ³rio" });
+
+  const result = await getLatestResultByPhone(telefone);
+  if (!result) return res.status(404).json({ error: "Nenhum resultado encontrado para este telefone" });
+
+  res.json({
+    leadId: result.lead_id,
+    callSid: result.call_sid,
+    agentId: result.agent_id,
+    status: result.leads?.ultima_ligacao_em ? "finished" : "unknown",
+    telefone: result.leads?.telefone ?? telefone,
+    createdAt: result.criado_em,
+    resultado_final: {
+      confirmado: result.confirmado,
+      pessoa_correta: result.pessoa_correta,
+      proxima_acao: result.proxima_acao,
+    },
+    interesse: result.interesse,
+    humor: result.humor,
+    resumo: result.resumo,
+    ultima_ligacao_em: result.leads?.ultima_ligacao_em ?? null,
+    lead: result.leads ?? null,
+    agent: result.agents ?? null,
+  });
+});
+
+app.get("/results/by-phone/conversation", async (req, res) => {
+  const telefone = String(req.query.telefone ?? "");
+  if (!normalizePhone(telefone)) return res.status(400).json({ error: "telefone obrigatÃ³rio" });
+
+  const conversation = await getLatestConversationByPhone(telefone);
+  if (!conversation?.call_result) return res.status(404).json({ error: "Nenhuma conversa encontrada para este telefone" });
+
+  res.json({
+    leadId: conversation.call_result.lead_id,
+    callSid: conversation.call_result.call_sid,
+    agentId: conversation.call_result.agent_id,
+    telefone,
+    createdAt: conversation.call_result.criado_em,
+    resultado_final: {
+      confirmado: conversation.call_result.confirmado,
+      pessoa_correta: conversation.call_result.pessoa_correta,
+      proxima_acao: conversation.call_result.proxima_acao,
+    },
+    interesse: conversation.call_result.interesse,
+    humor: conversation.call_result.humor,
+    resumo: conversation.call_result.resumo,
+    transcricao: conversation.bubbles,
+    transcricao_texto: conversation.texto,
+  });
+});
+
 app.get("/results/:id", async (req, res) => {
   const result = await getCallResultById(req.params.id);
   if (!result) return res.status(404).json({ error: "Não encontrado" });
   res.json(result);
+});
+
+app.get("/results/by-phone", async (req, res) => {
+  const telefone = String(req.query.telefone ?? "");
+  if (!normalizePhone(telefone)) return res.status(400).json({ error: "telefone obrigatório" });
+
+  const result = await getLatestResultByPhone(telefone);
+  if (!result) return res.status(404).json({ error: "Nenhum resultado encontrado para este telefone" });
+
+  res.json({
+    leadId: result.lead_id,
+    callSid: result.call_sid,
+    agentId: result.agent_id,
+    status: result.leads?.ultima_ligacao_em ? "finished" : "unknown",
+    telefone: result.leads?.telefone ?? telefone,
+    createdAt: result.criado_em,
+    resultado_final: {
+      confirmado: result.confirmado,
+      pessoa_correta: result.pessoa_correta,
+      proxima_acao: result.proxima_acao,
+    },
+    interesse: result.interesse,
+    humor: result.humor,
+    resumo: result.resumo,
+    ultima_ligacao_em: result.leads?.ultima_ligacao_em ?? null,
+    lead: result.leads ?? null,
+    agent: result.agents ?? null,
+  });
+});
+
+app.get("/results/by-phone/conversation", async (req, res) => {
+  const telefone = String(req.query.telefone ?? "");
+  if (!normalizePhone(telefone)) return res.status(400).json({ error: "telefone obrigatório" });
+
+  const conversation = await getLatestConversationByPhone(telefone);
+  if (!conversation?.call_result) return res.status(404).json({ error: "Nenhuma conversa encontrada para este telefone" });
+
+  res.json({
+    leadId: conversation.call_result.lead_id,
+    callSid: conversation.call_result.call_sid,
+    agentId: conversation.call_result.agent_id,
+    telefone,
+    createdAt: conversation.call_result.criado_em,
+    resultado_final: {
+      confirmado: conversation.call_result.confirmado,
+      pessoa_correta: conversation.call_result.pessoa_correta,
+      proxima_acao: conversation.call_result.proxima_acao,
+    },
+    interesse: conversation.call_result.interesse,
+    humor: conversation.call_result.humor,
+    resumo: conversation.call_result.resumo,
+    transcricao: conversation.bubbles,
+    transcricao_texto: conversation.texto,
+  });
 });
 
 app.get("/transcripts/:callSid", async (req, res) => {
@@ -342,11 +592,49 @@ app.post("/agents/:id/regenerate-token", async (req, res) => {
   res.json(await regenerateInboundToken(req.params.id));
 });
 
+app.post("/agents/:id/dispatch", async (req, res) => {
+  const agent = await getAgentById(req.params.id);
+  if (!agent) return res.status(404).json({ error: "Agente não encontrado" });
+
+  try {
+    const dispatched = await dispatchLeadWithAgent({ agent, body: req.body });
+    res.json(buildDispatchResponse(dispatched));
+  } catch (err) {
+    console.error("[/agents/:id/dispatch]", err);
+    res.status(err.statusCode ?? 500).json({ error: err.message });
+  }
+});
+
+app.post("/public/agents/:token/dispatch", async (req, res) => {
+  const agent = await getAgentByInboundToken(req.params.token);
+  if (!agent?.ativo) return res.status(404).json({ error: "Token inválido" });
+
+  try {
+    const dispatched = await dispatchLeadWithAgent({ agent, body: req.body });
+    res.json(buildDispatchResponse(dispatched));
+  } catch (err) {
+    console.error("[/public/agents/:token/dispatch]", err);
+    res.status(err.statusCode ?? 500).json({ error: err.message });
+  }
+});
+
 // ─── Webhook entrada (JSON livre → lead + ligação) ────────────────────────────
 
 app.post("/hooks/inbound/:token", async (req, res) => {
   const agent = await getAgentByInboundToken(req.params.token);
   if (!agent?.ativo) return res.status(404).json({ error: "Token inválido" });
+
+  try {
+    const dispatched = await dispatchLeadWithAgent({
+      agent,
+      body: req.body,
+      fallbackPhonePath: agent.telefone_json_path,
+    });
+    return res.json(buildDispatchResponse(dispatched));
+  } catch (err) {
+    console.error("[hooks/inbound]", err);
+    return res.status(err.statusCode ?? 500).json({ error: err.message });
+  }
 
   const raw = req.body;
   let phone =
@@ -544,14 +832,12 @@ wss.on("connection", (twilioWs) => {
             console.error("[FC] Erro ao salvar resultado", err);
           }
 
-          const conv = await getTranscriptsConversation(callSid).catch(() => ({ bubbles: [] }));
-          const webhookPayload = {
+          const webhookPayload = await buildFinalWebhookPayload({
             callSid,
             leadId,
             agentId: wsAgentId,
-            ...fc.args,
-            transcricao: conv.bubbles ?? [],
-          };
+            resultArgs: fc.args,
+          });
 
           if (process.env.N8N_WEBHOOK_URL) {
             fetch(process.env.N8N_WEBHOOK_URL, {

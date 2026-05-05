@@ -1,3 +1,5 @@
+import { buildLeadContextPromptBlock } from "../util/leadContext.js";
+
 /**
  * Monta o system prompt para cada lead.
  * `agentConfig` vem de getEffectiveAgentConfig (agente + fallback bot_config).
@@ -13,6 +15,7 @@ export function buildPromptForLead(lead, agentConfig = {}) {
   }
   const bg = agentConfig.instrucoes_background?.trim();
   if (bg) ctxBlock += `\n\nInstruções de background do agente:\n${bg}`;
+  ctxBlock += buildLeadContextPromptBlock(lead?.payload_extras);
 
   if (template) {
     let t = template
@@ -22,7 +25,7 @@ export function buildPromptForLead(lead, agentConfig = {}) {
       .replace(/\{\{origem\}\}/g, lead.origem ?? "não informada")
       .replace(/\{\{objetivo\}\}/g, lead.objetivo ?? "apresentar a empresa")
       .replace(/\{\{oferta\}\}/g, lead.oferta ?? "não especificado");
-    return t + ctxBlock;
+    return `${t}${ctxBlock}`;
   }
 
   const base = `Você é um agente de voz da ${empresa}.
@@ -53,5 +56,5 @@ Estilo:
 - Não pressione a pessoa.
 - Se a pessoa pedir para não ligar mais, classifique proxima_acao como "nao_contatar".`;
 
-  return ctxBlock ? ctxBlock.trim() + "\n\n" + base : base;
+  return ctxBlock ? `${ctxBlock.trim()}\n\n${base}` : base;
 }

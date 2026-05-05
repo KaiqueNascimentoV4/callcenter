@@ -1,4 +1,5 @@
 import { supabase } from "./supabase.js";
+import { getLatestLeadByPhone } from "./leads.js";
 
 export async function saveCallResult({
   callSid,
@@ -92,6 +93,12 @@ export async function getTranscriptsConversation(callSid) {
   return { raw: rows, bubbles: mergeTranscriptsToBubbles(rows) };
 }
 
+function buildTranscriptSummary(bubbles) {
+  return (bubbles ?? [])
+    .map((item) => `${item.role === "agent" ? "Agente" : "Cliente"}: ${item.texto}`)
+    .join("\n");
+}
+
 export async function listCallResults({
   page = 1,
   limit = 50,
@@ -105,7 +112,7 @@ export async function listCallResults({
 } = {}) {
   let query = supabase
     .from("call_results")
-    .select("*, leads(nome, empresa), agents(nome)", { count: "exact" });
+    .select("id, call_sid, lead_id, agent_id, interesse, humor, resumo, proxima_acao, criado_em, leads(nome, empresa, telefone), agents(nome)", { count: "exact" });
 
   if (lead_id) query = query.eq("lead_id", lead_id);
   if (agent_id) query = query.eq("agent_id", agent_id);
@@ -126,10 +133,37 @@ export async function listCallResults({
 export async function getCallResultById(id) {
   const { data } = await supabase
     .from("call_results")
-    .select("*, leads(nome, empresa, telefone)")
+    .select("*, leads(nome, empresa, telefone), agents(nome, webhook_entrada_token)")
     .eq("id", id)
     .single();
   return data;
+}
+
+export async function getLatestResultByPhone(phone) {
+  const lead = await getLatestLeadByPhone(phone);
+  if (!lead) return null;
+
+  const { data, error } = await supabase
+    .from("call_results")
+    .select("*, leads(nome, empresa, telefone, ultima_ligacao_em), agents(nome, webhook_entrada_token)")
+    .eq("lead_id", lead.id)
+    .order("criado_em", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data ?? null;
+}
+
+export async function getLatestConversationByPhone(phone) {
+  const result = await getLatestResultByPhone(phone);
+  if (!result?.call_sid) return null;
+  const conversation = await getTranscriptsConversation(result.call_sid);
+  return {
+    ...conversation,
+    call_result: result,
+    texto: buildTranscriptSummary(conversation.bubbles),
+  };
 }
 
 export async function getStatsSummary({ agent_id } = {}) {

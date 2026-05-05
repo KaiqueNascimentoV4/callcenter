@@ -1,18 +1,17 @@
 "use client";
+
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import {
-  LayoutDashboard, Users, PhoneCall, Settings, Megaphone, LogOut,
-  Bot, ShieldCheck, PanelLeftClose, PanelLeftOpen, Sun, Moon,
-} from "lucide-react";
-import { cn } from "@/lib/utils";
-import { motion, AnimatePresence } from "framer-motion";
+import { useEffect, useMemo, useState } from "react";
+import { useTheme } from "next-themes";
+import { motion } from "framer-motion";
+import { Bot, LayoutDashboard, LogOut, Megaphone, Moon, PanelLeftClose, PanelLeftOpen, PhoneCall, Settings, ShieldCheck, Sun, Users } from "lucide-react";
 import { getSupabase } from "@/lib/supabase";
 import { adminApi } from "@/lib/api";
-import { useTheme } from "next-themes";
-import { useState, useEffect } from "react";
+import { cn } from "@/lib/utils";
 
-const BASE_LINKS = [
+const baseLinks = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/agents", label: "Agentes", icon: Bot },
   { href: "/leads", label: "Leads", icon: Users },
@@ -22,220 +21,163 @@ const BASE_LINKS = [
 ];
 
 export function Sidebar() {
-  const path = usePathname();
+  const pathname = usePathname();
   const router = useRouter();
   const { resolvedTheme, setTheme } = useTheme();
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(() => typeof window !== "undefined" && localStorage.getItem("sidebar-collapsed") === "true");
   const [signingOut, setSigningOut] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [user, setUser] = useState<{ email?: string; name?: string; avatar?: string } | null>(null);
+  const [user, setUser] = useState<{ name?: string; email?: string; avatar?: string } | null>(null);
 
   useEffect(() => {
-    const stored = localStorage.getItem("sidebar-collapsed");
-    if (stored) setCollapsed(stored === "true");
-  }, []);
+    async function load() {
+      const { data: { user: supaUser } } = await getSupabase().auth.getUser();
+      if (!supaUser) return;
 
-  function toggleCollapse() {
-    setCollapsed((c) => {
-      localStorage.setItem("sidebar-collapsed", String(!c));
-      return !c;
-    });
-  }
-
-  useEffect(() => {
-    async function loadUser() {
-      const { data: { user: u } } = await getSupabase().auth.getUser();
-      if (!u) return;
-      const meta = u.user_metadata;
       setUser({
-        email: u.email,
-        name: meta?.full_name ?? meta?.name ?? u.email?.split("@")[0],
-        avatar: meta?.avatar_url ?? meta?.picture,
+        name: supaUser.user_metadata?.full_name ?? supaUser.user_metadata?.name ?? supaUser.email?.split("@")[0],
+        email: supaUser.email,
+        avatar: supaUser.user_metadata?.avatar_url ?? supaUser.user_metadata?.picture,
       });
+
       try {
         const users = await adminApi.listUsers();
-        const me = users.find((x) => x.user_id === u.id);
-        setIsAdmin(!!me?.admin);
-      } catch { /* não é admin */ }
+        setIsAdmin(Boolean(users.find((entry) => entry.user_id === supaUser.id)?.admin));
+      } catch {
+        setIsAdmin(false);
+      }
     }
-    void loadUser();
+
+    void load();
   }, []);
 
-  const isHidden = path.startsWith("/login") || path.startsWith("/auth") || path.startsWith("/pending");
-  if (isHidden) return null;
+  const links = useMemo(
+    () => (isAdmin ? [...baseLinks, { href: "/admin", label: "Admin", icon: ShieldCheck }] : baseLinks),
+    [isAdmin],
+  );
 
-  const links = isAdmin
-    ? [...BASE_LINKS, { href: "/admin", label: "Admin", icon: ShieldCheck }]
-    : BASE_LINKS;
+  const hidden = pathname.startsWith("/login") || pathname.startsWith("/auth") || pathname.startsWith("/pending");
+  if (hidden) return null;
 
-  async function handleSignOut() {
+  async function signOut() {
     setSigningOut(true);
     await getSupabase().auth.signOut();
     router.push("/login");
   }
 
-  const initials = user?.name
-    ? user.name.split(" ").slice(0, 2).map((n: string) => n[0]).join("").toUpperCase()
-    : "?";
+  const initials = user?.name?.split(" ").slice(0, 2).map((chunk) => chunk[0]).join("").toUpperCase() ?? "VC";
 
   return (
     <motion.aside
-      animate={{ width: collapsed ? 64 : 220 }}
-      transition={{ type: "spring", bounce: 0.1, duration: 0.35 }}
-      className="shrink-0 flex flex-col bg-sidebar border-r border-sidebar-border px-2 py-4 overflow-hidden"
+      animate={{ width: collapsed ? 84 : 286 }}
+      transition={{ type: "spring", stiffness: 260, damping: 26 }}
+      className="sticky top-0 hidden h-screen shrink-0 border-r border-sidebar-border bg-sidebar/95 px-3 py-4 shadow-[var(--shadow-sm)] backdrop-blur lg:flex lg:flex-col"
     >
-      {/* Header: logo + collapse button */}
-      <div className="flex items-center justify-between px-2 mb-6">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <img src="/v4-logo.webp" alt="V4" className="w-7 h-7 shrink-0 rounded" />
-          <AnimatePresence>
-            {!collapsed && (
-              <motion.span
-                initial={{ opacity: 0, width: 0 }}
-                animate={{ opacity: 1, width: "auto" }}
-                exit={{ opacity: 0, width: 0 }}
-                className="text-foreground font-bold text-sm tracking-[0.2em] uppercase overflow-hidden whitespace-nowrap"
-              >
-                CALL
-              </motion.span>
-            )}
-          </AnimatePresence>
+      <div className={cn("flex flex-col items-center gap-4 rounded-[28px] border border-sidebar-border bg-sidebar-accent/50 px-3 py-4", collapsed ? "px-2" : "px-4")}>
+        <div className="flex w-full items-center justify-between">
+          <div className={cn("flex items-center gap-3", collapsed && "justify-center")}>
+            <Image src="/v4-logo.webp" alt="V4" width={44} height={44} className="h-11 w-11 rounded-2xl object-cover shadow-[var(--shadow-xs)]" />
+            {!collapsed ? (
+              <div className="space-y-0.5">
+                <p className="text-[11px] uppercase tracking-[0.28em] text-muted-foreground">V4</p>
+                <p className="text-lg font-semibold tracking-[0.24em] text-foreground">CALL</p>
+              </div>
+            ) : null}
+          </div>
+          {!collapsed ? (
+            <button
+              type="button"
+              onClick={() => {
+                localStorage.setItem("sidebar-collapsed", "true");
+                setCollapsed(true);
+              }}
+              className="rounded-xl border border-sidebar-border bg-background/70 p-2 text-muted-foreground transition hover:text-foreground"
+            >
+              <PanelLeftClose className="h-4 w-4" />
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => {
+                localStorage.setItem("sidebar-collapsed", "false");
+                setCollapsed(false);
+              }}
+              className="rounded-xl border border-sidebar-border bg-background/70 p-2 text-muted-foreground transition hover:text-foreground"
+            >
+              <PanelLeftOpen className="h-4 w-4" />
+            </button>
+          )}
         </div>
-        <button
-          onClick={toggleCollapse}
-          className="shrink-0 text-muted-foreground hover:text-foreground transition-colors"
-          title={collapsed ? "Expandir menu" : "Recolher menu"}
-        >
-          {collapsed
-            ? <PanelLeftOpen className="w-4 h-4" />
-            : <PanelLeftClose className="w-4 h-4" />}
-        </button>
+        {!collapsed ? <p className="text-center text-xs leading-5 text-muted-foreground">Central de operações para agentes, leads, campanhas e resultados com IA.</p> : null}
       </div>
 
-      {/* Nav */}
-      <nav className="flex flex-col gap-0.5 flex-1">
-        {links.map(({ href, label, icon: Icon }, i) => {
-          const active = path === href;
+      <nav className="mt-6 flex flex-1 flex-col gap-1.5">
+        {links.map(({ href, label, icon: Icon }) => {
+          const active = pathname === href || (href !== "/" && pathname.startsWith(href));
           return (
-            <motion.div
+            <Link
               key={href}
-              initial={{ opacity: 0, x: -8 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: i * 0.04, duration: 0.25 }}
+              href={href}
+              title={collapsed ? label : undefined}
+              className={cn(
+                "group relative flex items-center gap-3 rounded-2xl px-3 py-3 text-sm font-medium transition-all",
+                collapsed ? "justify-center" : "",
+                active ? "bg-primary text-primary-foreground shadow-[var(--shadow-xs)]" : "text-sidebar-foreground/78 hover:bg-sidebar-accent hover:text-foreground",
+              )}
             >
-              <Link
-                href={href}
-                title={collapsed ? label : undefined}
-                className={cn(
-                  "relative flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] font-medium transition-all duration-200",
-                  collapsed ? "justify-center" : "",
-                  active ? "text-foreground" : "text-muted-foreground hover:text-foreground hover:bg-sidebar-accent"
-                )}
-              >
-                {active && (
-                  <motion.div
-                    layoutId="sidebar-active"
-                    className="absolute inset-0 rounded-lg bg-sidebar-accent border border-sidebar-border"
-                    transition={{ type: "spring", bounce: 0.2, duration: 0.4 }}
-                  />
-                )}
-                <Icon className={cn("w-4 h-4 relative z-10 shrink-0", active && "text-primary")} />
-                <AnimatePresence>
-                  {!collapsed && (
-                    <motion.span
-                      initial={{ opacity: 0, width: 0 }}
-                      animate={{ opacity: 1, width: "auto" }}
-                      exit={{ opacity: 0, width: 0 }}
-                      className="relative z-10 overflow-hidden whitespace-nowrap"
-                    >
-                      {label}
-                    </motion.span>
-                  )}
-                </AnimatePresence>
-              </Link>
-            </motion.div>
+              <Icon className="h-4 w-4 shrink-0" />
+              {!collapsed ? <span>{label}</span> : null}
+            </Link>
           );
         })}
       </nav>
 
-      {/* Theme toggle */}
-      <button
-        onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
-        title={resolvedTheme === "dark" ? "Modo claro" : "Modo escuro"}
-        className={cn(
-          "flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] font-medium text-muted-foreground hover:text-foreground hover:bg-sidebar-accent transition-all duration-200",
-          collapsed ? "justify-center" : ""
-        )}
-      >
-        {resolvedTheme === "dark"
-          ? <Sun className="w-4 h-4 shrink-0" />
-          : <Moon className="w-4 h-4 shrink-0" />}
-        <AnimatePresence>
-          {!collapsed && (
-            <motion.span
-              initial={{ opacity: 0, width: 0 }}
-              animate={{ opacity: 1, width: "auto" }}
-              exit={{ opacity: 0, width: 0 }}
-              className="overflow-hidden whitespace-nowrap"
-            >
-              {resolvedTheme === "dark" ? "Modo claro" : "Modo escuro"}
-            </motion.span>
+      <div className="space-y-3 border-t border-sidebar-border pt-4">
+        <button
+          type="button"
+          onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
+          className={cn(
+            "flex w-full items-center gap-3 rounded-2xl border border-sidebar-border bg-sidebar-accent/60 px-3 py-3 text-sm text-sidebar-foreground/80 transition hover:text-foreground",
+            collapsed && "justify-center",
           )}
-        </AnimatePresence>
-      </button>
+        >
+          {resolvedTheme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+          {!collapsed ? <span>{resolvedTheme === "dark" ? "Modo claro" : "Modo escuro"}</span> : null}
+        </button>
 
-      {/* User profile */}
-      <div className={cn(
-        "mt-2 border-t border-sidebar-border pt-3 flex items-center gap-2.5 px-2",
-        collapsed ? "justify-center" : ""
-      )}>
-        {/* Avatar */}
-        <div className="w-8 h-8 rounded-full shrink-0 overflow-hidden bg-primary/20 flex items-center justify-center">
-          {user?.avatar
-            ? <img src={user.avatar} alt={user.name} className="w-full h-full object-cover" />
-            : <span className="text-[11px] font-semibold text-primary">{initials}</span>}
-        </div>
-
-        <AnimatePresence>
-          {!collapsed && (
-            <motion.div
-              initial={{ opacity: 0, width: 0 }}
-              animate={{ opacity: 1, width: "auto" }}
-              exit={{ opacity: 0, width: 0 }}
-              className="flex-1 min-w-0 overflow-hidden"
-            >
-              <p className="text-[12px] font-medium text-foreground truncate">{user?.name ?? "—"}</p>
-              <p className="text-[11px] text-muted-foreground truncate">{user?.email}</p>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        <AnimatePresence>
-          {!collapsed && (
-            <motion.button
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={handleSignOut}
+        <div className={cn("rounded-[26px] border border-sidebar-border bg-sidebar-accent/50 p-3", collapsed ? "px-2" : "px-3")}>
+          <div className={cn("flex items-center gap-3", collapsed && "justify-center")}>
+            <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-2xl bg-primary/15 text-sm font-semibold text-primary">
+              {user?.avatar ? <Image src={user.avatar} alt={user.name ?? "Usuário"} width={44} height={44} className="h-full w-full object-cover" unoptimized /> : initials}
+            </div>
+            {!collapsed ? (
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium text-foreground">{user?.name ?? "Usuário"}</p>
+                <p className="truncate text-xs text-muted-foreground">{user?.email ?? "Sem sessão"}</p>
+              </div>
+            ) : null}
+            {!collapsed ? (
+              <button
+                type="button"
+                onClick={() => void signOut()}
+                disabled={signingOut}
+                className="rounded-xl border border-sidebar-border bg-background/70 p-2 text-muted-foreground transition hover:text-foreground disabled:opacity-50"
+              >
+                <LogOut className="h-4 w-4" />
+              </button>
+            ) : null}
+          </div>
+          {collapsed ? (
+            <button
+              type="button"
+              onClick={() => void signOut()}
               disabled={signingOut}
-              title="Sair"
-              className="shrink-0 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+              className="mt-3 flex w-full items-center justify-center rounded-xl border border-sidebar-border bg-background/70 p-2 text-muted-foreground transition hover:text-foreground disabled:opacity-50"
             >
-              <LogOut className="w-4 h-4" />
-            </motion.button>
-          )}
-        </AnimatePresence>
-
-        {collapsed && (
-          <button
-            onClick={handleSignOut}
-            disabled={signingOut}
-            title="Sair"
-            className="text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
-          >
-            <LogOut className="w-4 h-4" />
-          </button>
-        )}
+              <LogOut className="h-4 w-4" />
+            </button>
+          ) : null}
+        </div>
       </div>
     </motion.aside>
   );

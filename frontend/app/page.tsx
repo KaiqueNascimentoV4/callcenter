@@ -1,38 +1,36 @@
 "use client";
-import { useState } from "react";
+
+import { Suspense, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { statsApi, resultsApi, agentsApi } from "@/lib/api";
+import { useRouter, useSearchParams } from "next/navigation";
+import { agentsApi, resultsApi, statsApi } from "@/lib/api";
+import { PageHeader } from "@/components/app/page-header";
+import { StatCard } from "@/components/app/stat-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { PhoneCall, TrendingUp, Users, Zap, Bot } from "lucide-react";
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar, Legend } from "recharts";
-import { interesseBadge, proximo } from "@/lib/badges";
-import { motion } from "framer-motion";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Bot, PhoneCall, TrendingUp, Users, Zap } from "lucide-react";
+import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, BarChart, Bar, Legend } from "recharts";
+import { interesseBadge, proximo } from "@/lib/badges";
 
-const fadeUp = {
-  hidden: { opacity: 0, y: 16 },
-  show: (i: number) => ({ opacity: 1, y: 0, transition: { delay: i * 0.07, duration: 0.4, ease: "easeOut" as const } }),
-};
+function DashboardContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const agentId = searchParams.get("agent") ?? "all";
 
-export default function Dashboard() {
-  const [agentId, setAgentId] = useState<string>("all");
-
-  const { data: agentsList } = useQuery({
-    queryKey: ["agents", "for-dash"],
+  const { data: agents = [] } = useQuery({
+    queryKey: ["agents", "dashboard"],
     queryFn: () => agentsApi.list(true),
   });
 
-  const agentParams = agentId !== "all" ? { agent_id: agentId } : undefined;
-
   const { data: summary } = useQuery({
     queryKey: ["stats-summary", agentId],
-    queryFn: () => statsApi.summary(agentParams),
+    queryFn: () => statsApi.summary(agentId !== "all" ? { agent_id: agentId } : undefined),
   });
 
-  const { data: chart } = useQuery({
-    queryKey: ["stats-date", agentId],
-    queryFn: () => statsApi.byDate(agentParams),
+  const { data: byDate } = useQuery({
+    queryKey: ["stats-by-date", agentId],
+    queryFn: () => statsApi.byDate(agentId !== "all" ? { agent_id: agentId } : undefined),
   });
 
   const { data: byAgent } = useQuery({
@@ -44,177 +42,165 @@ export default function Dashboard() {
     queryKey: ["results-recent", agentId],
     queryFn: () =>
       resultsApi.list({
-        limit: "10",
+        limit: "12",
         ...(agentId !== "all" ? { agent_id: agentId } : {}),
       }),
   });
 
-  const agentChartData =
-    byAgent?.map((a) => ({
-      name: a.agent_nome.length > 14 ? a.agent_nome.slice(0, 12) + "…" : a.agent_nome,
-      fullName: a.agent_nome,
-      total: a.total,
-      alto: a.alto,
-    })) ?? [];
+  const selectedAgent = agents.find((agent) => agent.id === agentId);
 
-  const activeAgentsCount = agentsList?.filter((a) => a.ativo).length ?? "—";
+  const chartData = useMemo(
+    () =>
+      (byAgent ?? [])
+        .filter((row) => agentId === "all" || row.agent_id === agentId)
+        .map((row) => ({
+          name: row.agent_nome,
+          total: row.total,
+          alto: row.alto,
+        })),
+    [agentId, byAgent],
+  );
 
-  const cards = [
-    { label: "Ligações hoje", value: summary?.ligacoes_hoje ?? "—", icon: PhoneCall, accent: "#ff4400" },
-    { label: "Total de ligações", value: summary?.total_ligacoes ?? "—", icon: Users, accent: "#888" },
-    { label: "Taxa interesse alto", value: summary ? `${summary.taxa_interesse_alto}%` : "—", icon: TrendingUp, accent: "#22c55e" },
-    { label: "Taxa de conversão", value: summary ? `${summary.taxa_conversao}%` : "—", icon: Zap, accent: "#a855f7" },
-    { label: "Agentes ativos", value: activeAgentsCount, icon: Bot, accent: "#3b82f6" },
-  ];
+  const activeAgentsCount = agents.filter((agent) => agent.ativo).length;
+
+  function setAgent(value: string) {
+    const params = new URLSearchParams(searchParams.toString());
+    if (value === "all") params.delete("agent");
+    else params.set("agent", value);
+    router.replace(`/?${params.toString()}`);
+  }
 
   return (
-    <div className="space-y-8 max-w-6xl">
-      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }} className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Dashboard</h1>
-          <p className="text-muted-foreground text-sm mt-1">Visão geral das ligações e resultados</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-[11px] text-muted-foreground uppercase tracking-wide shrink-0">Agente</span>
-          <Select value={agentId} onValueChange={(v) => setAgentId(v ?? "all")}>
-            <SelectTrigger className="w-[220px] bg-card border-border text-foreground">
-              <SelectValue placeholder="Todos" />
-            </SelectTrigger>
-            <SelectContent className="bg-accent border-border">
-              <SelectItem value="all">Todos os agentes</SelectItem>
-              {agentsList?.map((a) => (
-                <SelectItem key={a.id} value={a.id} disabled={!a.ativo}>
-                  {a.nome}
-                  {!a.ativo ? " (inativo)" : ""}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </motion.div>
+    <div className="page-shell">
+      <PageHeader
+        eyebrow={agentId === "all" ? "Visão global" : "Visão por agente"}
+        title={agentId === "all" ? "Dashboard" : `Dashboard · ${selectedAgent?.nome ?? "Agente"}`}
+        description={agentId === "all"
+          ? "Acompanhe volume, interesse e evolução do time de agentes em uma visão operacional mais completa."
+          : "Todas as métricas, ligações recentes e tendências desta página estão centradas no agente selecionado."}
+        actions={
+          <div className="flex items-center gap-3">
+            <span className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">Contexto</span>
+            <Select value={agentId} onValueChange={(value) => setAgent(value ?? "all")}>
+              <SelectTrigger className="w-[260px]">
+                <SelectValue placeholder="Todos os agentes" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos os agentes</SelectItem>
+                {agents.map((agent) => (
+                  <SelectItem key={agent.id} value={agent.id}>
+                    {agent.nome}{!agent.ativo ? " (inativo)" : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        }
+      />
 
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-        {cards.map(({ label, value, icon: Icon, accent }, i) => (
-          <motion.div key={label} custom={i} variants={fadeUp} initial="hidden" animate="show">
-            <Card className="bg-card border-border hover:border-border transition-colors">
-              <CardContent className="pt-5 pb-5">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <p className="text-[12px] text-muted-foreground uppercase tracking-wide">{label}</p>
-                    <p className="text-[28px] font-bold mt-1 leading-none text-foreground">{value}</p>
-                  </div>
-                  <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: `${accent}15` }}>
-                    <Icon className="w-4 h-4" style={{ color: accent }} />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-        ))}
-      </div>
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+        <StatCard label="Ligações hoje" value={summary?.ligacoes_hoje ?? "—"} hint="Volume do dia" icon={PhoneCall} />
+        <StatCard label="Total de ligações" value={summary?.total_ligacoes ?? "—"} hint="Janela registrada no sistema" icon={Users} />
+        <StatCard label="Interesse alto" value={summary ? `${summary.taxa_interesse_alto}%` : "—"} hint="Taxa de alta intenção" icon={TrendingUp} />
+        <StatCard label="Conversão" value={summary ? `${summary.taxa_conversao}%` : "—"} hint="Alto ou médio interesse" icon={Zap} />
+        <StatCard label="Agentes ativos" value={agentId === "all" ? activeAgentsCount : selectedAgent?.ativo ? 1 : 0} hint={agentId === "all" ? "Ativos no ecossistema" : "Status do agente selecionado"} icon={Bot} />
+      </section>
 
-      <motion.div custom={4} variants={fadeUp} initial="hidden" animate="show">
-        <Card className="bg-card border-border">
-          <CardHeader className="pb-4">
-            <CardTitle className="text-[14px] font-medium text-foreground uppercase tracking-wide">Ligações por dia</CardTitle>
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
+        <Card className="border-border bg-card shadow-sm">
+          <CardHeader>
+            <CardTitle className="text-base text-foreground">Evolução diária</CardTitle>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={200}>
-              <LineChart data={chart ?? []}>
-                <XAxis dataKey="date" tick={{ fontSize: 11, fill: "#555" }} axisLine={false} tickLine={false} />
-                <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: "#555" }} axisLine={false} tickLine={false} />
+            <ResponsiveContainer width="100%" height={280}>
+              <LineChart data={byDate ?? []}>
+                <XAxis dataKey="date" tick={{ fontSize: 11, fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} />
+                <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} />
                 <Tooltip
-                  contentStyle={{ background: "#161616", border: "1px solid #2a2a2a", borderRadius: 8, fontSize: 12 }}
-                  labelStyle={{ color: "#aaa" }}
+                  contentStyle={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 16, fontSize: 12 }}
+                  labelStyle={{ color: "var(--foreground)" }}
                 />
-                <Line type="monotone" dataKey="total" stroke="#ff4400" strokeWidth={2} dot={false} name="Total" />
-                <Line type="monotone" dataKey="alto" stroke="#22c55e" strokeWidth={2} dot={false} name="Alto interesse" />
+                <Line type="monotone" dataKey="total" stroke="var(--primary)" strokeWidth={2.5} dot={false} name="Total" />
+                <Line type="monotone" dataKey="alto" stroke="#22c55e" strokeWidth={2.5} dot={false} name="Alto interesse" />
               </LineChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
-      </motion.div>
 
-      <motion.div custom={5} variants={fadeUp} initial="hidden" animate="show">
-        <Card className="bg-card border-border">
-          <CardHeader className="pb-4">
-            <CardTitle className="text-[14px] font-medium text-foreground uppercase tracking-wide">Volume por agente (global)</CardTitle>
+        <Card className="border-border bg-card shadow-sm">
+          <CardHeader>
+            <CardTitle className="text-base text-foreground">
+              {agentId === "all" ? "Ranking por agente" : "Volume do agente selecionado"}
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            {agentChartData.length === 0 ? (
-              <p className="text-muted-foreground text-sm py-8 text-center">Sem dados agrupados por agente</p>
+            {chartData.length === 0 ? (
+              <p className="py-16 text-center text-sm text-muted-foreground">Sem dados suficientes para este recorte.</p>
             ) : (
-              <ResponsiveContainer width="100%" height={220}>
-                <BarChart data={agentChartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-                  <XAxis dataKey="name" tick={{ fontSize: 10, fill: "#666" }} axisLine={false} tickLine={false} />
-                  <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: "#555" }} axisLine={false} tickLine={false} />
+              <ResponsiveContainer width="100%" height={280}>
+                <BarChart data={chartData}>
+                  <XAxis dataKey="name" tick={{ fontSize: 11, fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} />
+                  <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} />
                   <Tooltip
-                    contentStyle={{ background: "#161616", border: "1px solid #2a2a2a", borderRadius: 8, fontSize: 12 }}
-                    formatter={(value, name) => [
-                      typeof value === "number" ? value : 0,
-                      String(name) === "total" ? "Total" : "Alto interesse",
-                    ]}
-                    labelFormatter={(_, payload) => {
-                      const p = payload?.[0]?.payload as { fullName?: string } | undefined;
-                      return p?.fullName ?? "";
-                    }}
+                    contentStyle={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 16, fontSize: 12 }}
+                    labelStyle={{ color: "var(--foreground)" }}
                   />
                   <Legend wrapperStyle={{ fontSize: 12 }} />
-                  <Bar dataKey="total" fill="#ff4400" name="Total" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="alto" fill="#22c55e" name="Alto interesse" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="total" fill="var(--primary)" name="Total" radius={[8, 8, 0, 0]} />
+                  <Bar dataKey="alto" fill="#22c55e" name="Alto interesse" radius={[8, 8, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             )}
           </CardContent>
         </Card>
-      </motion.div>
+      </div>
 
-      <motion.div custom={6} variants={fadeUp} initial="hidden" animate="show">
-        <Card className="bg-card border-border">
-          <CardHeader className="pb-4">
-            <CardTitle className="text-[14px] font-medium text-foreground uppercase tracking-wide">Ligações recentes</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border text-muted-foreground text-left text-[11px] uppercase tracking-wide">
-                  <th className="pb-3 font-medium">Lead</th>
-                  <th className="pb-3 font-medium">Agente</th>
-                  <th className="pb-3 font-medium">Interesse</th>
-                  <th className="pb-3 font-medium">Próxima ação</th>
-                  <th className="pb-3 font-medium">Data</th>
+      <Card className="border-border bg-card shadow-sm">
+        <CardHeader>
+          <CardTitle className="text-base text-foreground">Ligações recentes</CardTitle>
+        </CardHeader>
+        <CardContent className="overflow-x-auto">
+          <table className="min-w-full text-sm">
+            <thead>
+              <tr className="border-b border-border text-left text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+                <th className="pb-3 font-medium">Lead</th>
+                <th className="pb-3 font-medium">Agente</th>
+                <th className="pb-3 font-medium">Interesse</th>
+                <th className="pb-3 font-medium">Próxima ação</th>
+                <th className="pb-3 font-medium">Data</th>
+              </tr>
+            </thead>
+            <tbody>
+              {recent?.data?.map((result) => (
+                <tr key={result.id} className="border-b border-border last:border-b-0">
+                  <td className="py-3 text-foreground">{result.leads?.nome ?? result.lead_id}</td>
+                  <td className="py-3 text-muted-foreground">{result.agents?.nome ?? "—"}</td>
+                  <td className="py-3">
+                    <Badge variant="outline" className={interesseBadge(result.interesse)}>
+                      {result.interesse}
+                    </Badge>
+                  </td>
+                  <td className="py-3 text-muted-foreground">{proximo(result.proxima_acao)}</td>
+                  <td className="py-3 text-muted-foreground">{new Date(result.criado_em).toLocaleDateString("pt-BR")}</td>
                 </tr>
-              </thead>
-              <tbody>
-                {recent?.data?.map((r) => (
-                  <tr key={r.id} className="border-b border-border last:border-0 hover:bg-accent transition-colors">
-                    <td className="py-3 text-foreground">{r.leads?.nome ?? r.lead_id ?? "—"}</td>
-                    <td className="py-3 text-muted-foreground">{r.agents?.nome ?? "—"}</td>
-                    <td className="py-3">
-                      <Badge variant="outline" className={interesseBadge(r.interesse)}>
-                        {r.interesse}
-                      </Badge>
-                    </td>
-                    <td className="py-3">
-                      <Badge variant="outline" className="border-border text-muted-foreground">
-                        {proximo(r.proxima_acao)}
-                      </Badge>
-                    </td>
-                    <td className="py-3 text-muted-foreground text-[12px]">{new Date(r.criado_em).toLocaleDateString("pt-BR")}</td>
-                  </tr>
-                ))}
-                {!recent?.data?.length && (
-                  <tr>
-                    <td colSpan={5} className="py-8 text-center text-muted-foreground text-sm">
-                      Nenhuma ligação ainda
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </CardContent>
-        </Card>
-      </motion.div>
+              ))}
+              {!recent?.data?.length ? (
+                <tr>
+                  <td colSpan={5} className="py-10 text-center text-sm text-muted-foreground">Nenhuma ligação registrada ainda.</td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </CardContent>
+      </Card>
     </div>
+  );
+}
+
+export default function DashboardPage() {
+  return (
+    <Suspense fallback={<div className="page-shell"><div className="h-96 animate-pulse rounded-3xl border border-border bg-card" /></div>}>
+      <DashboardContent />
+    </Suspense>
   );
 }

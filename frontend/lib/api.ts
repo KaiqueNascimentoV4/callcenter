@@ -66,6 +66,10 @@ export const resultsApi = {
       raw: Transcript[];
       bubbles: { role: "user" | "agent"; texto: string; ts: string; ts_end?: string }[];
     }>(`/transcripts/${callSid}/conversation`),
+  byPhone: (telefone: string) =>
+    req<PhoneResult>(`/results/by-phone?telefone=${encodeURIComponent(telefone)}`),
+  conversationByPhone: (telefone: string) =>
+    req<PhoneConversationResult>(`/results/by-phone/conversation?telefone=${encodeURIComponent(telefone)}`),
 };
 
 // ── Campaigns ─────────────────────────────────────────────────────────────
@@ -78,7 +82,7 @@ export const campaignsApi = {
     req<Campaign>(`/campaigns/${id}`, { method: "PUT", body: JSON.stringify(body) }),
   delete: (id: string) => req(`/campaigns/${id}`, { method: "DELETE" }),
   stats: (id: string) => req<CampaignStats>(`/campaigns/${id}/stats`),
-  dispatch: (id: string) => req(`/campaigns/${id}/dispatch`, { method: "POST" }),
+  dispatch: (id: string) => req<CampaignDispatchResponse>(`/campaigns/${id}/dispatch`, { method: "POST" }),
 };
 
 // ── Agents ─────────────────────────────────────────────────────────────────
@@ -91,6 +95,10 @@ export const agentsApi = {
   update: (id: string, body: Partial<Agent>) => req<Agent>(`/agents/${id}`, { method: "PUT", body: JSON.stringify(body) }),
   delete: (id: string) => req(`/agents/${id}`, { method: "DELETE" }),
   regenerateToken: (id: string) => req<Agent>(`/agents/${id}/regenerate-token`, { method: "POST" }),
+  dispatch: (id: string, body: AgentDispatchPayload) =>
+    req<DispatchResponse>(`/agents/${id}/dispatch`, { method: "POST", body: JSON.stringify(body) }),
+  dispatchByToken: (token: string, body: AgentDispatchPayload) =>
+    req<DispatchResponse>(`/public/agents/${token}/dispatch`, { method: "POST", body: JSON.stringify(body) }),
   voicePreviewUrl: (id: string) => {
     const base = apiBaseUrl();
     const path = `/agents/${id}/voice-preview`;
@@ -171,6 +179,26 @@ export type Agent = {
   atualizado_em?: string;
 };
 
+export type AgentDispatchPayload = {
+  telefone: string;
+  nome?: string;
+  empresa?: string;
+  cargo?: string;
+  campaign_id?: string;
+  contexto?: string | Record<string, unknown>;
+  metadata?: Record<string, unknown>;
+};
+
+export type DispatchResponse = {
+  ok: true;
+  leadId: string;
+  callSid: string;
+  agentId: string;
+  status: string;
+  telefone: string;
+  createdAt: string;
+};
+
 export type AgentStatRow = {
   agent_id: string | null;
   agent_nome: string;
@@ -218,6 +246,16 @@ export type CampaignStats = {
   taxa_interesse_alto: number;
 };
 
+export type CampaignDispatchResponse = {
+  dispatched: number;
+  results: Array<{
+    leadId: string;
+    callSid?: string;
+    ok: boolean;
+    error?: string;
+  }>;
+};
+
 export type BotConfig = {
   empresa_nome: string;
   modelo_gemini: string;
@@ -244,6 +282,44 @@ export type UserApproval = {
   admin: boolean;
   approved_at: string | null;
   created_at: string;
+};
+
+export type PhoneResult = {
+  leadId: string;
+  callSid: string;
+  agentId: string | null;
+  status: string;
+  telefone: string;
+  createdAt: string;
+  resultado_final: {
+    confirmado: boolean;
+    pessoa_correta: boolean;
+    proxima_acao: string;
+  };
+  interesse: string;
+  humor: string;
+  resumo: string;
+  ultima_ligacao_em: string | null;
+  lead: { nome?: string; empresa?: string; telefone?: string } | null;
+  agent: { nome?: string } | null;
+};
+
+export type PhoneConversationResult = {
+  leadId: string;
+  callSid: string;
+  agentId: string | null;
+  telefone: string;
+  createdAt: string;
+  resultado_final: {
+    confirmado: boolean;
+    pessoa_correta: boolean;
+    proxima_acao: string;
+  };
+  interesse: string;
+  humor: string;
+  resumo: string;
+  transcricao: { role: "user" | "agent"; texto: string; ts: string; ts_end?: string }[];
+  transcricao_texto: string;
 };
 
 export const adminApi = {
