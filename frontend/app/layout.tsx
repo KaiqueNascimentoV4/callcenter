@@ -9,7 +9,7 @@ const geist = Geist({ subsets: ["latin"], variable: "--font-geist-sans" });
 export const metadata: Metadata = {
   title: "V4 Call",
   description: "Painel de gestão de leads e ligações com IA",
-  icons: { icon: "/v4-logo.webp" },
+  // icons são gerados por `app/icon.tsx` e `app/apple-icon.tsx`
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

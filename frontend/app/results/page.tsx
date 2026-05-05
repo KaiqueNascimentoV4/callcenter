@@ -232,7 +232,7 @@ export default function ResultsPage() {
                         <div
                           className={`rounded-xl px-3 py-2 max-w-[85%] text-sm ${
                             t.role === "agent"
-                              ? "bg-[#ff4400]/10 text-[#ffaa88] border border-[#ff4400]/20"
+                              ? "bg-primary/10 text-foreground border border-primary/20"
                               : "bg-muted text-foreground border border-border"
                           }`}
                         >

@@ -113,12 +113,13 @@ function buildLeadPayloadExtras(rawPayload, normalizedContext, metadata) {
   return extras;
 }
 
-function buildDispatchResponse({ lead, call, agent }) {
+function buildDispatchResponse({ lead, call, agent, agentCfg }) {
+  const agentId = agent?.id ?? lead?.agent_id ?? agentCfg?.id ?? null;
   return {
     ok: true,
     leadId: lead.id,
     callSid: call.sid,
-    agentId: agent.id,
+    agentId,
     status: call.status,
     telefone: lead.telefone,
     createdAt: lead.criado_em ?? new Date().toISOString(),

@@ -75,7 +75,7 @@ export function Sidebar() {
     >
       <div className={cn("flex items-center justify-between rounded-xl border border-sidebar-border bg-sidebar-accent/45 px-3 py-2.5", collapsed ? "px-2" : "px-3")}>
         <div className={cn("flex items-center gap-3", collapsed && "justify-center")}>
-          <Image src="/v4-logo.webp" alt="V4" width={40} height={40} className="h-10 w-10 rounded-xl object-cover shadow-[var(--shadow-xs)]" />
+          <Image src="/v4-logo.svg" alt="V4" width={40} height={40} className="h-10 w-10 rounded-xl object-cover shadow-[var(--shadow-xs)]" />
           {!collapsed ? (
             <div className="leading-tight">
               <p className="text-xs font-semibold tracking-tight text-foreground">V4 Call</p>

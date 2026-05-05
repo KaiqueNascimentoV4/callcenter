@@ -28,16 +28,16 @@ export default function AdminPage() {
   return (
     <div className="space-y-6 max-w-4xl">
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
-        <h1 className="text-2xl font-semibold tracking-tight text-white">Administração</h1>
-        <p className="text-[#666] text-sm mt-1">Aprovação de acesso e permissões de usuários</p>
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Administração</h1>
+        <p className="text-muted-foreground text-sm mt-1">Aprovação de acesso e permissões de usuários</p>
       </motion.div>
 
-      <div className="rounded-xl border border-[#1e1e1e] bg-[#111] overflow-hidden">
+      <div className="overflow-hidden rounded-xl border border-border bg-card shadow-[var(--shadow-xs)]">
         <table className="w-full text-sm">
-          <thead className="border-b border-[#1e1e1e]">
+          <thead className="border-b border-border bg-muted/40">
             <tr>
               {["Email", "Status", "Admin", "Cadastro", "Ações"].map((h) => (
-                <th key={h} className="text-left px-4 py-3 font-medium text-[#555] text-[11px] uppercase tracking-wide">
+                <th key={h} className="text-left px-4 py-3 font-semibold text-muted-foreground text-[11px] uppercase tracking-wide">
                   {h}
                 </th>
               ))}
@@ -45,12 +45,12 @@ export default function AdminPage() {
           </thead>
           <tbody>
             {isLoading ? (
-              <tr><td colSpan={5} className="text-center py-12 text-[#555]">Carregando…</td></tr>
+              <tr><td colSpan={5} className="text-center py-12 text-muted-foreground">Carregando…</td></tr>
             ) : data?.length === 0 ? (
-              <tr><td colSpan={5} className="text-center py-12 text-[#555]">Nenhum usuário</td></tr>
+              <tr><td colSpan={5} className="text-center py-12 text-muted-foreground">Nenhum usuário</td></tr>
             ) : data?.map((u) => (
-              <tr key={u.id} className="border-b border-[#1a1a1a] last:border-0 hover:bg-[#161616]">
-                <td className="px-4 py-3 text-[#ccc]">{u.email}</td>
+              <tr key={u.id} className="border-b border-border/70 last:border-0 hover:bg-muted/20">
+                <td className="px-4 py-3 text-foreground">{u.email}</td>
                 <td className="px-4 py-3">
                   <Badge variant="outline" className={u.approved
                     ? "border-green-500/40 text-green-400"
@@ -60,12 +60,12 @@ export default function AdminPage() {
                 </td>
                 <td className="px-4 py-3">
                   <Badge variant="outline" className={u.admin
-                    ? "border-[#ff4400]/40 text-[#ff4400]"
-                    : "border-[#2a2a2a] text-[#555]"}>
+                    ? "border-primary/40 text-primary"
+                    : "border-border text-muted-foreground"}>
                     {u.admin ? "Admin" : "—"}
                   </Badge>
                 </td>
-                <td className="px-4 py-3 text-[#555] text-[12px]">
+                <td className="px-4 py-3 text-muted-foreground text-[12px]">
                   {new Date(u.created_at).toLocaleDateString("pt-BR")}
                 </td>
                 <td className="px-4 py-3">
@@ -82,7 +82,7 @@ export default function AdminPage() {
                       </Button>
                     )}
                     <Button size="sm" variant="ghost"
-                      className={`h-7 text-xs hover:bg-[#2a2a2a] ${u.admin ? "text-[#ff4400]" : "text-[#666]"}`}
+                      className={`h-7 text-xs hover:bg-muted/40 ${u.admin ? "text-primary" : "text-muted-foreground"}`}
                       onClick={() => patch.mutate({ userId: u.user_id, fields: { admin: !u.admin } })}>
                       <UserCog className="w-3.5 h-3.5 mr-1" /> {u.admin ? "Remover admin" : "Tornar admin"}
                     </Button>

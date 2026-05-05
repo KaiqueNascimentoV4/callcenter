@@ -22,27 +22,27 @@ function LoginContent() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#080808] relative overflow-hidden">
+    <div className="min-h-screen flex items-center justify-center bg-background relative overflow-hidden">
       {/* Background glow */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-[#ff4400]/5 rounded-full blur-[120px]" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-primary/10 rounded-full blur-[120px]" />
       </div>
 
       <motion.div
         initial={{ opacity: 0, y: 24 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, ease: "easeOut" }}
-        className="relative z-10 w-full max-w-sm px-8 py-10 rounded-2xl bg-[#111111] border border-[#1e1e1e]"
+        className="relative z-10 w-full max-w-sm px-8 py-10 rounded-xl bg-card border border-border shadow-[var(--shadow-sm)]"
       >
         {/* Logo */}
         <div className="flex flex-col items-center mb-10">
           <div className="flex items-center gap-2 mb-2">
-            <div className="w-8 h-8 rounded-lg bg-[#ff4400] flex items-center justify-center">
-              <span className="text-white font-bold text-sm">V4</span>
+            <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
+              <span className="text-primary-foreground font-bold text-sm">V4</span>
             </div>
-            <span className="text-white font-semibold text-lg tracking-tight">Voice Agent</span>
+            <span className="text-foreground font-semibold text-lg tracking-tight">Voice Agent</span>
           </div>
-          <p className="text-[#888] text-sm text-center mt-1">
+          <p className="text-muted-foreground text-sm text-center mt-1">
             Painel interno da V4 Company
           </p>
         </div>
@@ -62,17 +62,17 @@ function LoginContent() {
         <button
           onClick={handleGoogle}
           disabled={loading}
-          className="w-full flex items-center justify-center gap-3 px-4 py-3 rounded-xl bg-white hover:bg-white/90 text-[#111] font-medium text-sm transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full flex items-center justify-center gap-3 px-4 py-3 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 font-medium text-sm transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {loading ? (
-            <div className="w-4 h-4 border-2 border-[#111]/30 border-t-[#111] rounded-full animate-spin" />
+            <div className="w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
           ) : (
             <GoogleIcon />
           )}
           {loading ? "Redirecionando..." : "Entrar com Google"}
         </button>
 
-        <p className="text-center text-[#555] text-xs mt-6">
+        <p className="text-center text-muted-foreground text-xs mt-6">
           Somente e-mails @v4company.com
         </p>
       </motion.div>

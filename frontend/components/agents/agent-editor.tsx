@@ -11,6 +11,7 @@ import { CopyButton } from "@/components/app/copy-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -23,6 +24,19 @@ import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 
 type KVEntry = { key: string; value: string };
+
+type AiWizardState = {
+  empresa: string;
+  produto: string;
+  publico: string;
+  objetivo: string;
+  oferta: string;
+  tom: "consultivo" | "direto" | "neutro";
+  objecoes: string;
+  cta: "whatsapp" | "reuniao" | "email" | "outro";
+  restricoes: string;
+  quem_fala_primeiro: "auto" | "agente" | "usuario";
+};
 
 const MODEL_OPTIONS = [
   "gemini-2.0-flash-live-001",
@@ -123,6 +137,20 @@ function AgentEditorShell({ agentId, initialAgent }: { agentId?: string; initial
   const [form, setForm] = useState<Partial<Agent>>(initialAgent);
   const [contextEntries, setContextEntries] = useState<KVEntry[]>(initialContextEntries);
   const [newContext, setNewContext] = useState<KVEntry>({ key: "", value: "" });
+  const [aiOpen, setAiOpen] = useState(false);
+  const [aiGenerating, setAiGenerating] = useState(false);
+  const [aiState, setAiState] = useState<AiWizardState>(() => ({
+    empresa: String(initialAgent.empresa_nome ?? ""),
+    produto: "V4 Call",
+    publico: "",
+    objetivo: "",
+    oferta: "",
+    tom: "consultivo",
+    objecoes: "",
+    cta: "reuniao",
+    restricoes: "",
+    quem_fala_primeiro: "auto",
+  }));
   const [dispatchPayload, setDispatchPayload] = useState<AgentDispatchPayload>({
     telefone: "",
     nome: SAMPLE_DATA.nome,
@@ -154,6 +182,38 @@ function AgentEditorShell({ agentId, initialAgent }: { agentId?: string; initial
     const fallback = process.env.NEXT_PUBLIC_API_BASE?.startsWith("http") ? process.env.NEXT_PUBLIC_API_BASE : base;
     return `${fallback.replace(/\/$/, "")}/hooks/inbound/${form.webhook_entrada_token}`;
   }, [form.webhook_entrada_token]);
+
+  async function generateWithAi() {
+    setAiGenerating(true);
+    try {
+      const res = await fetch("/api/ai/agents/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(aiState),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json?.error || "Falha ao gerar script com IA");
+
+      const empresa_contexto =
+        json?.empresa_contexto && typeof json.empresa_contexto === "object" ? json.empresa_contexto : {};
+
+      setContextEntries(kvFromObj(empresa_contexto));
+      setForm((prev) => ({
+        ...prev,
+        empresa_nome: prev.empresa_nome || aiState.empresa,
+        prompt_template: json.prompt_template ?? prev.prompt_template,
+        instrucoes_background: json.instrucoes_background ?? prev.instrucoes_background,
+        quem_fala_primeiro: json.quem_fala_primeiro ?? prev.quem_fala_primeiro,
+      }));
+
+      toast.success("Script gerado. Revise e salve o agente.");
+      setAiOpen(false);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Não foi possível gerar com IA");
+    } finally {
+      setAiGenerating(false);
+    }
+  }
 
   const saveMutation = useMutation({
     mutationFn: async () => {
@@ -286,6 +346,10 @@ function AgentEditorShell({ agentId, initialAgent }: { agentId?: string; initial
         actions={
           <>
             <Button variant="outline" onClick={() => handleNavigateAway("/agents")}>Cancelar</Button>
+            <Button type="button" variant="outline" onClick={() => setAiOpen(true)} disabled={isNew}>
+              <Sparkles className="mr-2 h-4 w-4" />
+              Gerar com IA
+            </Button>
             <Button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending} className="bg-primary text-primary-foreground hover:bg-primary/90">
               {saveMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
               Salvar alterações
@@ -293,6 +357,113 @@ function AgentEditorShell({ agentId, initialAgent }: { agentId?: string; initial
           </>
         }
       />
+
+      <Dialog open={aiOpen} onOpenChange={setAiOpen}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Gerar script do agente com IA</DialogTitle>
+            <DialogDescription>
+              Preenche automaticamente roteiro, instruções internas e contexto do agente.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-4">
+            <div className="grid gap-3 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Empresa</Label>
+                <Input value={aiState.empresa} onChange={(e) => setAiState((s) => ({ ...s, empresa: e.target.value }))} />
+              </div>
+              <div className="space-y-2">
+                <Label>Produto/Serviço</Label>
+                <Input value={aiState.produto} onChange={(e) => setAiState((s) => ({ ...s, produto: e.target.value }))} />
+              </div>
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Público/ICP</Label>
+                <Input value={aiState.publico} onChange={(e) => setAiState((s) => ({ ...s, publico: e.target.value }))} placeholder="Ex.: diretores comerciais de PMEs" />
+              </div>
+              <div className="space-y-2">
+                <Label>Objetivo da ligação</Label>
+                <Input value={aiState.objetivo} onChange={(e) => setAiState((s) => ({ ...s, objetivo: e.target.value }))} placeholder="Ex.: qualificar e agendar reunião" />
+              </div>
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Oferta/benefício</Label>
+                <Input value={aiState.oferta} onChange={(e) => setAiState((s) => ({ ...s, oferta: e.target.value }))} placeholder="Ex.: reduzir tempo de atendimento" />
+              </div>
+              <div className="space-y-2">
+                <Label>CTA</Label>
+                <Select
+                  value={aiState.cta}
+                  onValueChange={(v) => setAiState((s) => ({ ...s, cta: (v as AiWizardState["cta"]) || "reuniao" }))}
+                >
+                  <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="reuniao">Agendar reunião</SelectItem>
+                    <SelectItem value="whatsapp">Enviar WhatsApp</SelectItem>
+                    <SelectItem value="email">Enviar e-mail</SelectItem>
+                    <SelectItem value="outro">Outro</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Tom</Label>
+                <Select
+                  value={aiState.tom}
+                  onValueChange={(v) => setAiState((s) => ({ ...s, tom: (v as AiWizardState["tom"]) || "consultivo" }))}
+                >
+                  <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="consultivo">Consultivo</SelectItem>
+                    <SelectItem value="direto">Direto</SelectItem>
+                    <SelectItem value="neutro">Neutro</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Quem fala primeiro</Label>
+                <Select
+                  value={aiState.quem_fala_primeiro}
+                  onValueChange={(v) =>
+                    setAiState((s) => ({ ...s, quem_fala_primeiro: (v as AiWizardState["quem_fala_primeiro"]) || "auto" }))
+                  }
+                >
+                  <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="auto">Sugestão da IA</SelectItem>
+                    <SelectItem value="agente">Agente</SelectItem>
+                    <SelectItem value="usuario">Usuário</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Objeções comuns</Label>
+              <Textarea value={aiState.objecoes} onChange={(e) => setAiState((s) => ({ ...s, objecoes: e.target.value }))} placeholder="Ex.: sem tempo, já tenho fornecedor, sem orçamento" />
+            </div>
+            <div className="space-y-2">
+              <Label>Restrições/regras</Label>
+              <Textarea value={aiState.restricoes} onChange={(e) => setAiState((s) => ({ ...s, restricoes: e.target.value }))} placeholder="Ex.: não falar preço, respeitar LGPD" />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" type="button" onClick={() => setAiOpen(false)} disabled={aiGenerating}>Cancelar</Button>
+            <Button type="button" onClick={() => void generateWithAi()} disabled={aiGenerating}>
+              {aiGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+              Gerar agora
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
         <Link href="/agents" className="hover:text-foreground">Agentes</Link>

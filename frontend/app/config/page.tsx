@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Loader2, Save, Settings2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -56,53 +57,77 @@ export default function ConfigPage() {
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.25fr)_320px]">
         <div className="space-y-6">
-          <FormSection title="Identidade padrão" description="Esses valores entram como fallback quando o agente específico não possui override.">
-            <div className="grid gap-5 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label>Nome padrão da empresa</Label>
-                <Input value={form.empresa_nome ?? ""} onChange={(e) => setDraft((prev) => ({ ...(prev ?? data ?? {}), empresa_nome: e.target.value }))} />
-              </div>
-              <div className="space-y-2">
-                <Label>Timeout padrão (s)</Label>
-                <Input type="number" min={30} max={600} value={form.timeout_segundos ?? 120} onChange={(e) => setDraft((prev) => ({ ...(prev ?? data ?? {}), timeout_segundos: Number(e.target.value) }))} />
-              </div>
-            </div>
-          </FormSection>
+          <Card>
+            <CardHeader className="gap-3 border-b border-border/80">
+              <CardTitle className="text-base">Configuração global (resumo)</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Modelo: <span className="text-foreground">{form.modelo_gemini ?? "—"}</span> · Voz:{" "}
+                <span className="text-foreground">{form.voz ?? "—"}</span> · Timeout:{" "}
+                <span className="text-foreground">{form.timeout_segundos ?? 120}s</span>
+              </p>
+            </CardHeader>
+            <CardContent className="pt-4">
+              <Tabs defaultValue="identity" className="space-y-4">
+                <TabsList className="w-full justify-start">
+                  <TabsTrigger value="identity">Identidade</TabsTrigger>
+                  <TabsTrigger value="ai">IA</TabsTrigger>
+                </TabsList>
 
-          <FormSection title="IA padrão" description="Somente para fallback operacional; o lugar ideal de configuração é a tela do agente.">
-            <div className="grid gap-5 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label>Modelo Gemini padrão</Label>
-                <Select value={form.modelo_gemini ?? MODELS[0]} onValueChange={(value) => setDraft((prev) => ({ ...(prev ?? data ?? {}), modelo_gemini: value ?? MODELS[0] }))}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {MODELS.map((model) => <SelectItem key={model} value={model}>{model}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Voz padrão</Label>
-                <Select value={form.voz ?? VOICES[0]} onValueChange={(value) => setDraft((prev) => ({ ...(prev ?? data ?? {}), voz: value ?? VOICES[0] }))}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {VOICES.map((voice) => <SelectItem key={voice} value={voice}>{voice}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="rounded-2xl border border-border bg-muted/30 p-4 md:col-span-2">
-                <div className="flex items-center justify-between gap-4">
-                  <div>
-                    <p className="font-medium text-foreground">Agente fala primeiro por padrão</p>
-                    <p className="text-sm text-muted-foreground">O agente específico pode sobrescrever isso na própria configuração.</p>
-                  </div>
-                  <Switch
-                    checked={form.quem_fala_primeiro === "agente"}
-                    onCheckedChange={(checked) => setDraft((prev) => ({ ...(prev ?? data ?? {}), quem_fala_primeiro: checked ? "agente" : "usuario" }))}
-                  />
-                </div>
-              </div>
-            </div>
-          </FormSection>
+                <TabsContent value="identity">
+                  <FormSection title="Identidade padrão" description="Fallback quando o agente específico não sobrescreve.">
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label>Nome padrão da empresa</Label>
+                        <Input value={form.empresa_nome ?? ""} onChange={(e) => setDraft((prev) => ({ ...(prev ?? data ?? {}), empresa_nome: e.target.value }))} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Timeout padrão (s)</Label>
+                        <Input type="number" min={30} max={600} value={form.timeout_segundos ?? 120} onChange={(e) => setDraft((prev) => ({ ...(prev ?? data ?? {}), timeout_segundos: Number(e.target.value) }))} />
+                      </div>
+                    </div>
+                  </FormSection>
+                </TabsContent>
+
+                <TabsContent value="ai">
+                  <FormSection title="IA padrão" description="Somente fallback operacional; a configuração ideal é por agente.">
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label>Modelo Gemini padrão</Label>
+                        <Select value={form.modelo_gemini ?? MODELS[0]} onValueChange={(value) => setDraft((prev) => ({ ...(prev ?? data ?? {}), modelo_gemini: value ?? MODELS[0] }))}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {MODELS.map((model) => <SelectItem key={model} value={model}>{model}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Voz padrão</Label>
+                        <Select value={form.voz ?? VOICES[0]} onValueChange={(value) => setDraft((prev) => ({ ...(prev ?? data ?? {}), voz: value ?? VOICES[0] }))}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {VOICES.map((voice) => <SelectItem key={voice} value={voice}>{voice}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="rounded-xl border border-border bg-muted/30 p-3 md:col-span-2">
+                        <div className="flex items-center justify-between gap-4">
+                          <div>
+                            <p className="font-medium text-foreground">Agente fala primeiro</p>
+                            <p className="text-sm text-muted-foreground">Cada agente pode sobrescrever isso na própria configuração.</p>
+                          </div>
+                          <Switch
+                            checked={form.quem_fala_primeiro === "agente"}
+                            onCheckedChange={(checked) => setDraft((prev) => ({ ...(prev ?? data ?? {}), quem_fala_primeiro: checked ? "agente" : "usuario" }))}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </FormSection>
+                </TabsContent>
+              </Tabs>
+            </CardContent>
+          </Card>
         </div>
 
         <aside>
