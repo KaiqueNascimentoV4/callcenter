@@ -15,7 +15,7 @@ import { decodeMulawToPcm16, encodePcm16ToMulaw } from "./audio/mulaw.js";
 import { resamplePcm16 } from "./audio/resample.js";
 import {
   getLeadById, listLeads, upsertLead, updateLead, deleteLead,
-  saveLeadInfoChave, getLeadInfoChave, bulkImportLeads,
+  saveLeadInfoChave, getLeadInfoChave, bulkImportLeads, bulkArchiveLeads, bulkAssignLeads,
   normalizePhone,
 } from "./db/leads.js";
 import {
@@ -339,6 +339,28 @@ app.post("/leads/import", async (req, res) => {
   if (!Array.isArray(leads)) return res.status(400).json({ error: "leads deve ser um array" });
   const data = await bulkImportLeads(leads);
   res.json({ imported: data.length });
+});
+
+app.post("/leads/bulk", async (req, res) => {
+  const { action, leadIds, agent_id, campaign_id } = req.body ?? {};
+  if (!Array.isArray(leadIds) || leadIds.length === 0) {
+    return res.status(400).json({ error: "leadIds deve ser um array com pelo menos um item" });
+  }
+
+  if (action === "delete") {
+    const result = await bulkArchiveLeads(leadIds);
+    return res.json({ ok: true, action, affected: result.count });
+  }
+
+  if (action === "assign") {
+    if (typeof agent_id === "undefined" && typeof campaign_id === "undefined") {
+      return res.status(400).json({ error: "Informe agent_id e/ou campaign_id para atribuição em massa" });
+    }
+    const result = await bulkAssignLeads({ ids: leadIds, agent_id, campaign_id });
+    return res.json({ ok: true, action, affected: result.count });
+  }
+
+  return res.status(400).json({ error: "Ação em massa inválida" });
 });
 
 // ─── Routes: Results / Transcripts ───────────────────────────────────────────

@@ -9,7 +9,10 @@ const geist = Geist({ subsets: ["latin"], variable: "--font-geist-sans" });
 export const metadata: Metadata = {
   title: "V4 Call",
   description: "Painel de gestão de leads e ligações com IA",
-  // icons são gerados por `app/icon.tsx` e `app/apple-icon.tsx`
+  icons: {
+    icon: "/icon.png",
+    apple: "/apple-icon.png",
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -19,7 +22,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <Providers>
           <div className="flex min-h-screen w-full bg-background">
             <Sidebar />
-            <main className="min-w-0 flex-1 overflow-y-auto px-4 py-6 sm:px-6 lg:px-10 lg:py-8">
+            <main className="min-w-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6 lg:px-8 lg:py-7 2xl:px-10">
               <div className="page-shell">{children}</div>
             </main>
           </div>

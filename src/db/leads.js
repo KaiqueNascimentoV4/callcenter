@@ -77,6 +77,36 @@ export async function deleteLead(id) {
   if (error) throw error;
 }
 
+export async function bulkArchiveLeads(ids = []) {
+  const uniqueIds = Array.from(new Set((ids ?? []).filter(Boolean)));
+  if (uniqueIds.length === 0) return { count: 0 };
+
+  const { data, error } = await supabase
+    .from("leads")
+    .update({ status: "arquivado" })
+    .in("id", uniqueIds)
+    .select("id");
+  if (error) throw error;
+  return { count: data?.length ?? 0 };
+}
+
+export async function bulkAssignLeads({ ids = [], agent_id, campaign_id }) {
+  const uniqueIds = Array.from(new Set((ids ?? []).filter(Boolean)));
+  if (uniqueIds.length === 0) return { count: 0 };
+
+  const fields = {};
+  if (typeof agent_id !== "undefined") fields.agent_id = agent_id;
+  if (typeof campaign_id !== "undefined") fields.campaign_id = campaign_id;
+
+  const { data, error } = await supabase
+    .from("leads")
+    .update(fields)
+    .in("id", uniqueIds)
+    .select("id");
+  if (error) throw error;
+  return { count: data?.length ?? 0 };
+}
+
 export async function saveLeadInfoChave(leadId, chave, valor) {
   const { error } = await supabase
     .from("lead_info_chave")

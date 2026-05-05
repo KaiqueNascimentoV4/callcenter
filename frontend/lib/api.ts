@@ -45,6 +45,7 @@ export const leadsApi = {
   addInfo: (id: string, chave: string, valor: string) =>
     req(`/leads/${id}/info`, { method: "POST", body: JSON.stringify({ chave, valor }) }),
   import: (leads: Partial<Lead>[]) => req("/leads/import", { method: "POST", body: JSON.stringify({ leads }) }),
+  bulk: (body: LeadBulkActionPayload) => req<LeadBulkActionResponse>("/leads/bulk", { method: "POST", body: JSON.stringify(body) }),
   call: (leadId: string, campaignId?: string) =>
     req<{ callSid: string; status: string }>("/calls/start", {
       method: "POST",
@@ -150,6 +151,16 @@ export type Lead = {
   tentativas: number;
   criado_em: string;
   agents?: { nome: string } | null;
+};
+
+export type LeadBulkActionPayload =
+  | { action: "delete"; leadIds: string[] }
+  | { action: "assign"; leadIds: string[]; agent_id?: string | null; campaign_id?: string | null };
+
+export type LeadBulkActionResponse = {
+  ok: true;
+  action: "delete" | "assign";
+  affected: number;
 };
 
 export type Agent = {

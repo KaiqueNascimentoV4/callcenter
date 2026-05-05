@@ -38,6 +38,83 @@ type AiWizardState = {
   quem_fala_primeiro: "auto" | "agente" | "usuario";
 };
 
+type AiGeneratedResult = {
+  prompt_template: string;
+  instrucoes_background: string;
+  empresa_contexto: Record<string, unknown>;
+  quem_fala_primeiro: "agente" | "usuario";
+};
+
+const AI_STEPS: Array<{
+  key: keyof AiWizardState;
+  title: string;
+  hint: string;
+  placeholder?: string;
+  type?: "text" | "textarea" | "select";
+  options?: Array<{ value: string; label: string }>;
+}> = [
+  {
+    key: "empresa",
+    title: "Qual empresa esse agente representa?",
+    hint: "Use o nome comercial que deve aparecer nas falas e no contexto interno.",
+    placeholder: "Ex.: V4 Company Amaral",
+  },
+  {
+    key: "produto",
+    title: "O que ele está vendendo ou qualificando?",
+    hint: "Produto, serviço ou oferta principal. Isso ancora a proposta de valor do roteiro.",
+    placeholder: "Ex.: V4 Call para automação de ligações comerciais",
+  },
+  {
+    key: "publico",
+    title: "Quem é o público ideal?",
+    hint: "Descreva o ICP com cargo, porte, segmento ou momento de compra.",
+    placeholder: "Ex.: diretores comerciais de PMEs com time de SDR",
+  },
+  {
+    key: "objetivo",
+    title: "Qual é o objetivo principal da ligação?",
+    hint: "Quanto mais claro, melhor a IA fecha a abertura e as perguntas de qualificação.",
+    placeholder: "Ex.: qualificar e agendar uma reunião com especialista",
+  },
+  {
+    key: "oferta",
+    title: "Qual benefício ou oferta o agente precisa destacar?",
+    hint: "Use a promessa principal, não uma lista inteira de features.",
+    placeholder: "Ex.: reduzir o tempo de resposta e aumentar conversão",
+  },
+  {
+    key: "objecoes",
+    title: "Quais objeções ele deve saber responder?",
+    hint: "Liste objeções reais do comercial para a IA se preparar melhor.",
+    placeholder: "Ex.: já usamos CRM, sem tempo, preciso falar com sócio",
+    type: "textarea",
+  },
+  {
+    key: "cta",
+    title: "Qual é o próximo passo ideal?",
+    hint: "Isso guia o fechamento do roteiro e a proposta de ação.",
+    type: "select",
+    options: [
+      { value: "reuniao", label: "Agendar reunião" },
+      { value: "whatsapp", label: "Enviar WhatsApp" },
+      { value: "email", label: "Enviar e-mail" },
+      { value: "outro", label: "Outro CTA" },
+    ],
+  },
+  {
+    key: "tom",
+    title: "Qual tom de abordagem faz mais sentido?",
+    hint: "Ferramentas maduras dão controle de estilo logo na criação. Vamos fazer o mesmo aqui.",
+    type: "select",
+    options: [
+      { value: "consultivo", label: "Consultivo" },
+      { value: "direto", label: "Direto" },
+      { value: "neutro", label: "Neutro" },
+    ],
+  },
+];
+
 const MODEL_OPTIONS = [
   "gemini-2.0-flash-live-001",
   "gemini-2.5-flash-live-preview",
@@ -139,6 +216,8 @@ function AgentEditorShell({ agentId, initialAgent }: { agentId?: string; initial
   const [newContext, setNewContext] = useState<KVEntry>({ key: "", value: "" });
   const [aiOpen, setAiOpen] = useState(false);
   const [aiGenerating, setAiGenerating] = useState(false);
+  const [aiStep, setAiStep] = useState(0);
+  const [aiGenerated, setAiGenerated] = useState<AiGeneratedResult | null>(null);
   const [aiState, setAiState] = useState<AiWizardState>(() => ({
     empresa: String(initialAgent.empresa_nome ?? ""),
     produto: "V4 Call",
@@ -165,6 +244,8 @@ function AgentEditorShell({ agentId, initialAgent }: { agentId?: string; initial
     [form, contextEntries],
   );
   const isDirty = baseline !== "" && baseline !== currentSnapshot;
+  const currentAiStep = AI_STEPS[Math.min(aiStep, AI_STEPS.length - 1)];
+  const aiCompletion = Math.round(((Math.min(aiStep, AI_STEPS.length) + (aiGenerated ? 1 : 0)) / (AI_STEPS.length + 1)) * 100);
 
   useEffect(() => {
     const onBeforeUnload = (event: BeforeUnloadEvent) => {
@@ -197,22 +278,54 @@ function AgentEditorShell({ agentId, initialAgent }: { agentId?: string; initial
       const empresa_contexto =
         json?.empresa_contexto && typeof json.empresa_contexto === "object" ? json.empresa_contexto : {};
 
-      setContextEntries(kvFromObj(empresa_contexto));
-      setForm((prev) => ({
-        ...prev,
-        empresa_nome: prev.empresa_nome || aiState.empresa,
-        prompt_template: json.prompt_template ?? prev.prompt_template,
-        instrucoes_background: json.instrucoes_background ?? prev.instrucoes_background,
-        quem_fala_primeiro: json.quem_fala_primeiro ?? prev.quem_fala_primeiro,
-      }));
-
-      toast.success("Script gerado. Revise e salve o agente.");
-      setAiOpen(false);
+      setAiGenerated({
+        prompt_template: json.prompt_template ?? "",
+        instrucoes_background: json.instrucoes_background ?? "",
+        empresa_contexto,
+        quem_fala_primeiro: json.quem_fala_primeiro ?? "agente",
+      });
+      setAiStep(AI_STEPS.length);
+      toast.success("Rascunho gerado. Revise e escolha o que aplicar.");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Não foi possível gerar com IA");
+      toast.error(e instanceof Error ? e.message : "N?o foi poss?vel gerar com IA");
     } finally {
       setAiGenerating(false);
     }
+  }
+
+  function openAiCopilot() {
+    setAiGenerated(null);
+    setAiStep(0);
+    setAiState((prev) => ({
+      ...prev,
+      empresa: String(form.empresa_nome ?? prev.empresa ?? ""),
+    }));
+    setAiOpen(true);
+  }
+
+  function applyGenerated(mode: "prompt" | "all") {
+    if (!aiGenerated) return;
+
+    if (mode === "prompt") {
+      setForm((prev) => ({
+        ...prev,
+        empresa_nome: prev.empresa_nome || aiState.empresa,
+        prompt_template: aiGenerated.prompt_template || prev.prompt_template,
+        instrucoes_background: aiGenerated.instrucoes_background || prev.instrucoes_background,
+      }));
+    } else {
+      setContextEntries(kvFromObj(aiGenerated.empresa_contexto));
+      setForm((prev) => ({
+        ...prev,
+        empresa_nome: prev.empresa_nome || aiState.empresa,
+        prompt_template: aiGenerated.prompt_template || prev.prompt_template,
+        instrucoes_background: aiGenerated.instrucoes_background || prev.instrucoes_background,
+        quem_fala_primeiro: aiGenerated.quem_fala_primeiro ?? prev.quem_fala_primeiro,
+      }));
+    }
+
+    toast.success(mode === "prompt" ? "Prompt aplicado ao agente" : "Script completo aplicado ao agente");
+    setAiOpen(false);
   }
 
   const saveMutation = useMutation({
@@ -346,7 +459,7 @@ function AgentEditorShell({ agentId, initialAgent }: { agentId?: string; initial
         actions={
           <>
             <Button variant="outline" onClick={() => handleNavigateAway("/agents")}>Cancelar</Button>
-            <Button type="button" variant="outline" onClick={() => setAiOpen(true)} disabled={isNew}>
+            <Button type="button" variant="outline" onClick={openAiCopilot}>
               <Sparkles className="mr-2 h-4 w-4" />
               Gerar com IA
             </Button>
@@ -359,109 +472,185 @@ function AgentEditorShell({ agentId, initialAgent }: { agentId?: string; initial
       />
 
       <Dialog open={aiOpen} onOpenChange={setAiOpen}>
-        <DialogContent className="sm:max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Gerar script do agente com IA</DialogTitle>
-            <DialogDescription>
-              Preenche automaticamente roteiro, instruções internas e contexto do agente.
-            </DialogDescription>
-          </DialogHeader>
+        <DialogContent className="overflow-hidden border-border bg-card p-0 sm:max-w-5xl">
+          <div className="grid lg:grid-cols-[280px_minmax(0,1fr)]">
+            <div className="border-b border-border bg-muted/30 p-6 lg:border-b-0 lg:border-r">
+              <DialogHeader className="space-y-3 text-left">
+                <DialogTitle className="text-xl">Copiloto de script com IA</DialogTitle>
+                <DialogDescription>
+                  Vamos estruturar o roteiro como uma ferramenta de voz madura: contexto, objetivo, CTA e obje??es bem amarrados.
+                </DialogDescription>
+              </DialogHeader>
 
-          <div className="grid gap-4">
-            <div className="grid gap-3 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label>Empresa</Label>
-                <Input value={aiState.empresa} onChange={(e) => setAiState((s) => ({ ...s, empresa: e.target.value }))} />
-              </div>
-              <div className="space-y-2">
-                <Label>Produto/Serviço</Label>
-                <Input value={aiState.produto} onChange={(e) => setAiState((s) => ({ ...s, produto: e.target.value }))} />
+              <div className="mt-6 space-y-4">
+                <div>
+                  <div className="mb-2 flex items-center justify-between text-xs uppercase tracking-[0.18em] text-muted-foreground">
+                    <span>Progresso</span>
+                    <span>{aiCompletion}%</span>
+                  </div>
+                  <div className="h-2 overflow-hidden rounded-full bg-border/70">
+                    <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${aiCompletion}%` }} />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  {AI_STEPS.map((step, index) => {
+                    const done = index < aiStep || Boolean((aiState[step.key] ?? "").toString().trim());
+                    const active = index === aiStep && !aiGenerated;
+                    return (
+                      <button
+                        key={step.key}
+                        type="button"
+                        onClick={() => !aiGenerated && setAiStep(index)}
+                        className={cn(
+                          "flex w-full items-start gap-3 rounded-lg border px-3 py-3 text-left transition-colors",
+                          active ? "border-primary/40 bg-primary/8" : "border-border bg-background hover:bg-accent/50",
+                        )}
+                      >
+                        <div className={cn("mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md border text-xs font-semibold", done ? "border-primary/40 bg-primary/12 text-primary" : "border-border text-muted-foreground")}>
+                          {index + 1}
+                        </div>
+                        <div className="min-w-0">
+                          <p className={cn("text-sm font-medium", active ? "text-foreground" : "text-muted-foreground")}>{step.title}</p>
+                          <p className="mt-1 text-xs leading-5 text-muted-foreground">{step.hint}</p>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             </div>
 
-            <div className="grid gap-3 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label>Público/ICP</Label>
-                <Input value={aiState.publico} onChange={(e) => setAiState((s) => ({ ...s, publico: e.target.value }))} placeholder="Ex.: diretores comerciais de PMEs" />
-              </div>
-              <div className="space-y-2">
-                <Label>Objetivo da ligação</Label>
-                <Input value={aiState.objetivo} onChange={(e) => setAiState((s) => ({ ...s, objetivo: e.target.value }))} placeholder="Ex.: qualificar e agendar reunião" />
-              </div>
-            </div>
+            <div className="p-6">
+              {!aiGenerated ? (
+                <div className="space-y-6">
+                  <div className="rounded-xl border border-border bg-background p-5">
+                    <p className="text-xs font-medium uppercase tracking-[0.18em] text-primary">Pergunta atual</p>
+                    <h3 className="mt-3 text-xl font-semibold text-foreground">{currentAiStep.title}</h3>
+                    <p className="mt-2 text-sm leading-6 text-muted-foreground">{currentAiStep.hint}</p>
+                  </div>
 
-            <div className="grid gap-3 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label>Oferta/benefício</Label>
-                <Input value={aiState.oferta} onChange={(e) => setAiState((s) => ({ ...s, oferta: e.target.value }))} placeholder="Ex.: reduzir tempo de atendimento" />
-              </div>
-              <div className="space-y-2">
-                <Label>CTA</Label>
-                <Select
-                  value={aiState.cta}
-                  onValueChange={(v) => setAiState((s) => ({ ...s, cta: (v as AiWizardState["cta"]) || "reuniao" }))}
-                >
-                  <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="reuniao">Agendar reunião</SelectItem>
-                    <SelectItem value="whatsapp">Enviar WhatsApp</SelectItem>
-                    <SelectItem value="email">Enviar e-mail</SelectItem>
-                    <SelectItem value="outro">Outro</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
+                  <div className="space-y-3">
+                    <Label className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Sua resposta</Label>
+                    {currentAiStep.type === "textarea" ? (
+                      <Textarea
+                        className="min-h-[180px]"
+                        value={String(aiState[currentAiStep.key] ?? "")}
+                        placeholder={currentAiStep.placeholder}
+                        onChange={(e) => setAiState((s) => ({ ...s, [currentAiStep.key]: e.target.value }))}
+                      />
+                    ) : currentAiStep.type === "select" ? (
+                      <Select
+                        value={String(aiState[currentAiStep.key] ?? currentAiStep.options?.[0]?.value ?? "")}
+                        onValueChange={(value) => setAiState((s) => ({ ...s, [currentAiStep.key]: value }))}
+                      >
+                        <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {currentAiStep.options?.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Input
+                        value={String(aiState[currentAiStep.key] ?? "")}
+                        placeholder={currentAiStep.placeholder}
+                        onChange={(e) => setAiState((s) => ({ ...s, [currentAiStep.key]: e.target.value }))}
+                      />
+                    )}
+                  </div>
 
-            <div className="grid gap-3 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label>Tom</Label>
-                <Select
-                  value={aiState.tom}
-                  onValueChange={(v) => setAiState((s) => ({ ...s, tom: (v as AiWizardState["tom"]) || "consultivo" }))}
-                >
-                  <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="consultivo">Consultivo</SelectItem>
-                    <SelectItem value="direto">Direto</SelectItem>
-                    <SelectItem value="neutro">Neutro</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Quem fala primeiro</Label>
-                <Select
-                  value={aiState.quem_fala_primeiro}
-                  onValueChange={(v) =>
-                    setAiState((s) => ({ ...s, quem_fala_primeiro: (v as AiWizardState["quem_fala_primeiro"]) || "auto" }))
-                  }
-                >
-                  <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="auto">Sugestão da IA</SelectItem>
-                    <SelectItem value="agente">Agente</SelectItem>
-                    <SelectItem value="usuario">Usuário</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
+                  <div className="rounded-xl border border-dashed border-border bg-muted/20 p-4">
+                    <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">Resumo at? aqui</p>
+                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                      {AI_STEPS.map((step) => {
+                        const value = String(aiState[step.key] ?? "").trim();
+                        if (!value) return null;
+                        return (
+                          <div key={step.key} className="rounded-lg border border-border bg-background px-3 py-2">
+                            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{step.title}</p>
+                            <p className="mt-1 text-sm text-foreground">{value}</p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
 
-            <div className="space-y-2">
-              <Label>Objeções comuns</Label>
-              <Textarea value={aiState.objecoes} onChange={(e) => setAiState((s) => ({ ...s, objecoes: e.target.value }))} placeholder="Ex.: sem tempo, já tenho fornecedor, sem orçamento" />
-            </div>
-            <div className="space-y-2">
-              <Label>Restrições/regras</Label>
-              <Textarea value={aiState.restricoes} onChange={(e) => setAiState((s) => ({ ...s, restricoes: e.target.value }))} placeholder="Ex.: não falar preço, respeitar LGPD" />
+                  <DialogFooter className="flex-col gap-3 border-t border-border pt-5 sm:flex-row sm:justify-between">
+                    <div className="flex gap-2">
+                      <Button variant="outline" type="button" onClick={() => setAiOpen(false)} disabled={aiGenerating}>Cancelar</Button>
+                      <Button variant="outline" type="button" onClick={() => setAiStep((prev) => Math.max(prev - 1, 0))} disabled={aiGenerating || aiStep === 0}>Anterior</Button>
+                    </div>
+                    {aiStep < AI_STEPS.length - 1 ? (
+                      <Button type="button" onClick={() => setAiStep((prev) => Math.min(prev + 1, AI_STEPS.length - 1))}>
+                        Pr?xima pergunta
+                      </Button>
+                    ) : (
+                      <Button type="button" onClick={() => void generateWithAi()} disabled={aiGenerating} className="bg-primary text-primary-foreground hover:bg-primary/90">
+                        {aiGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+                        Gerar roteiro
+                      </Button>
+                    )}
+                  </DialogFooter>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  <div className="rounded-xl border border-primary/20 bg-primary/6 p-5">
+                    <p className="text-xs font-medium uppercase tracking-[0.18em] text-primary">Rascunho pronto</p>
+                    <h3 className="mt-3 text-xl font-semibold text-foreground">A IA montou um primeiro script para este agente</h3>
+                    <p className="mt-2 text-sm leading-6 text-muted-foreground">Voc? pode aplicar s? o prompt ou preencher tamb?m instru??es internas, contexto e comportamento inicial.</p>
+                  </div>
+
+                  <div className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
+                    <Card className="border-border bg-background">
+                      <CardHeader>
+                        <CardTitle className="text-base">Mensagem inicial</CardTitle>
+                        <CardDescription>Primeira fala sugerida pela IA j? com placeholders v?lidos.</CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <pre className="whitespace-pre-wrap rounded-lg border border-border bg-muted/20 p-4 text-sm leading-6 text-foreground">{aiGenerated.prompt_template}</pre>
+                      </CardContent>
+                    </Card>
+
+                    <Card className="border-border bg-background">
+                      <CardHeader>
+                        <CardTitle className="text-base">Contexto e instru??es</CardTitle>
+                        <CardDescription>Resumo do material que ser? aplicado ao agente.</CardDescription>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div>
+                          <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">Instru??es internas</p>
+                          <p className="mt-2 text-sm leading-6 text-foreground">{aiGenerated.instrucoes_background || "Sem instru??es complementares."}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">Contexto gerado</p>
+                          <div className="mt-2 space-y-2">
+                            {Object.entries(aiGenerated.empresa_contexto).slice(0, 8).map(([key, value]) => (
+                              <div key={key} className="rounded-lg border border-border bg-muted/20 px-3 py-2">
+                                <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{key}</p>
+                                <p className="mt-1 text-sm text-foreground">{typeof value === "string" ? value : JSON.stringify(value)}</p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  <DialogFooter className="flex-col gap-3 border-t border-border pt-5 sm:flex-row sm:justify-between">
+                    <div className="flex gap-2">
+                      <Button variant="outline" type="button" onClick={() => { setAiGenerated(null); setAiStep(0); }}>Refazer perguntas</Button>
+                      <Button variant="outline" type="button" onClick={() => setAiOpen(false)}>Fechar</Button>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button type="button" variant="outline" onClick={() => applyGenerated("prompt")}>Aplicar s? prompt</Button>
+                      <Button type="button" onClick={() => applyGenerated("all")} className="bg-primary text-primary-foreground hover:bg-primary/90">Aplicar tudo</Button>
+                    </div>
+                  </DialogFooter>
+                </div>
+              )}
             </div>
           </div>
-
-          <DialogFooter>
-            <Button variant="outline" type="button" onClick={() => setAiOpen(false)} disabled={aiGenerating}>Cancelar</Button>
-            <Button type="button" onClick={() => void generateWithAi()} disabled={aiGenerating}>
-              {aiGenerating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
-              Gerar agora
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
 

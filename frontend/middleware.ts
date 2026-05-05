@@ -41,7 +41,7 @@ export async function middleware(request: NextRequest) {
   }
 
   // Checar aprovação para usuários autenticados em rotas protegidas
-  if (user && !isLoginPage && !isAuthCallback && !isPendingPage) {
+  if (user && !isLoginPage && !isAuthCallback) {
     try {
       const { data: approval, error } = await supabase
         .from("user_approvals")
@@ -50,9 +50,16 @@ export async function middleware(request: NextRequest) {
         .single();
 
       // Se a tabela não existe ou erro desconhecido, deixa passar (não bloqueia)
-      if (!error && approval && !approval.approved) {
+      if (!error && approval && !approval.approved && !isPendingPage) {
         const url = request.nextUrl.clone();
         url.pathname = "/pending";
+        return NextResponse.redirect(url);
+      }
+
+      // Se o usuário já foi aprovado e ainda está no /pending, volta para o app
+      if (!error && approval?.approved && isPendingPage) {
+        const url = request.nextUrl.clone();
+        url.pathname = "/";
         return NextResponse.redirect(url);
       }
     } catch {

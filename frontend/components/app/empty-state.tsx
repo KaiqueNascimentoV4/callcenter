@@ -12,10 +12,10 @@ type EmptyStateProps = {
 
 export function EmptyState({ icon: Icon, title, description, actionLabel, onAction }: EmptyStateProps) {
   return (
-    <Card className="border-dashed border-border bg-card/80 shadow-sm">
+    <Card className="border-dashed border-border bg-card/90 shadow-[var(--shadow-xs)]">
       <CardContent className="flex flex-col items-start gap-4 p-8 lg:p-10">
         {Icon ? (
-          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 text-primary">
+          <div className="flex h-11 w-11 items-center justify-center rounded-lg border border-border bg-primary/10 text-primary">
             <Icon className="h-5 w-5" />
           </div>
         ) : null}
