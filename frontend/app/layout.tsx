@@ -7,14 +7,15 @@ import { Sidebar } from "@/components/sidebar";
 const geist = Geist({ subsets: ["latin"], variable: "--font-geist-sans" });
 
 export const metadata: Metadata = {
-  title: "V4 Voice Agent",
+  title: "V4 Call",
   description: "Painel de gestão de leads e ligações com IA",
+  icons: { icon: "/v4-logo.webp" },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="pt-BR" className={`${geist.variable} h-full antialiased dark`}>
-      <body className="h-full flex bg-[#080808] text-[#f0f0f0]">
+    <html lang="pt-BR" className={`${geist.variable} h-full antialiased`} suppressHydrationWarning>
+      <body className="h-full flex bg-background text-foreground">
         <Providers>
           <Sidebar />
           <main className="flex-1 overflow-y-auto p-6 lg:p-8">{children}</main>

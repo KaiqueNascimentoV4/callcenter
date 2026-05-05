@@ -159,6 +159,14 @@ export type Agent = {
   webhook_saida_url?: string | null;
   webhook_entrada_token?: string | null;
   telefone_json_path?: string | null;
+  // Comportamento avançado
+  vad_silencio_ms?: number;
+  vad_sensibilidade_inicio?: string;
+  vad_sensibilidade_fim?: string;
+  interrupcao_habilitada?: boolean;
+  primeiro_turno_delay_ms?: number;
+  silencio_encerrar_seg?: number;
+  deteccao_voicemail?: boolean;
   criado_em?: string;
   atualizado_em?: string;
 };

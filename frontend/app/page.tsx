@@ -71,16 +71,16 @@ export default function Dashboard() {
     <div className="space-y-8 max-w-6xl">
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }} className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-white">Dashboard</h1>
-          <p className="text-[#666] text-sm mt-1">Visão geral das ligações e resultados</p>
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Dashboard</h1>
+          <p className="text-muted-foreground text-sm mt-1">Visão geral das ligações e resultados</p>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-[11px] text-[#555] uppercase tracking-wide shrink-0">Agente</span>
+          <span className="text-[11px] text-muted-foreground uppercase tracking-wide shrink-0">Agente</span>
           <Select value={agentId} onValueChange={(v) => setAgentId(v ?? "all")}>
-            <SelectTrigger className="w-[220px] bg-[#111] border-[#2a2a2a] text-[#ccc]">
+            <SelectTrigger className="w-[220px] bg-card border-border text-foreground">
               <SelectValue placeholder="Todos" />
             </SelectTrigger>
-            <SelectContent className="bg-[#161616] border-[#2a2a2a]">
+            <SelectContent className="bg-accent border-border">
               <SelectItem value="all">Todos os agentes</SelectItem>
               {agentsList?.map((a) => (
                 <SelectItem key={a.id} value={a.id} disabled={!a.ativo}>
@@ -96,12 +96,12 @@ export default function Dashboard() {
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         {cards.map(({ label, value, icon: Icon, accent }, i) => (
           <motion.div key={label} custom={i} variants={fadeUp} initial="hidden" animate="show">
-            <Card className="bg-[#111] border-[#1e1e1e] hover:border-[#2a2a2a] transition-colors">
+            <Card className="bg-card border-border hover:border-border transition-colors">
               <CardContent className="pt-5 pb-5">
                 <div className="flex items-start justify-between">
                   <div>
-                    <p className="text-[12px] text-[#666] uppercase tracking-wide">{label}</p>
-                    <p className="text-[28px] font-bold mt-1 leading-none text-white">{value}</p>
+                    <p className="text-[12px] text-muted-foreground uppercase tracking-wide">{label}</p>
+                    <p className="text-[28px] font-bold mt-1 leading-none text-foreground">{value}</p>
                   </div>
                   <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: `${accent}15` }}>
                     <Icon className="w-4 h-4" style={{ color: accent }} />
@@ -114,9 +114,9 @@ export default function Dashboard() {
       </div>
 
       <motion.div custom={4} variants={fadeUp} initial="hidden" animate="show">
-        <Card className="bg-[#111] border-[#1e1e1e]">
+        <Card className="bg-card border-border">
           <CardHeader className="pb-4">
-            <CardTitle className="text-[14px] font-medium text-[#aaa] uppercase tracking-wide">Ligações por dia</CardTitle>
+            <CardTitle className="text-[14px] font-medium text-foreground uppercase tracking-wide">Ligações por dia</CardTitle>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={200}>
@@ -136,13 +136,13 @@ export default function Dashboard() {
       </motion.div>
 
       <motion.div custom={5} variants={fadeUp} initial="hidden" animate="show">
-        <Card className="bg-[#111] border-[#1e1e1e]">
+        <Card className="bg-card border-border">
           <CardHeader className="pb-4">
-            <CardTitle className="text-[14px] font-medium text-[#aaa] uppercase tracking-wide">Volume por agente (global)</CardTitle>
+            <CardTitle className="text-[14px] font-medium text-foreground uppercase tracking-wide">Volume por agente (global)</CardTitle>
           </CardHeader>
           <CardContent>
             {agentChartData.length === 0 ? (
-              <p className="text-[#555] text-sm py-8 text-center">Sem dados agrupados por agente</p>
+              <p className="text-muted-foreground text-sm py-8 text-center">Sem dados agrupados por agente</p>
             ) : (
               <ResponsiveContainer width="100%" height={220}>
                 <BarChart data={agentChartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
@@ -170,14 +170,14 @@ export default function Dashboard() {
       </motion.div>
 
       <motion.div custom={6} variants={fadeUp} initial="hidden" animate="show">
-        <Card className="bg-[#111] border-[#1e1e1e]">
+        <Card className="bg-card border-border">
           <CardHeader className="pb-4">
-            <CardTitle className="text-[14px] font-medium text-[#aaa] uppercase tracking-wide">Ligações recentes</CardTitle>
+            <CardTitle className="text-[14px] font-medium text-foreground uppercase tracking-wide">Ligações recentes</CardTitle>
           </CardHeader>
           <CardContent>
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-[#1e1e1e] text-[#555] text-left text-[11px] uppercase tracking-wide">
+                <tr className="border-b border-border text-muted-foreground text-left text-[11px] uppercase tracking-wide">
                   <th className="pb-3 font-medium">Lead</th>
                   <th className="pb-3 font-medium">Agente</th>
                   <th className="pb-3 font-medium">Interesse</th>
@@ -187,25 +187,25 @@ export default function Dashboard() {
               </thead>
               <tbody>
                 {recent?.data?.map((r) => (
-                  <tr key={r.id} className="border-b border-[#1a1a1a] last:border-0 hover:bg-[#161616] transition-colors">
-                    <td className="py-3 text-[#ccc]">{r.leads?.nome ?? r.lead_id ?? "—"}</td>
-                    <td className="py-3 text-[#888]">{r.agents?.nome ?? "—"}</td>
+                  <tr key={r.id} className="border-b border-border last:border-0 hover:bg-accent transition-colors">
+                    <td className="py-3 text-foreground">{r.leads?.nome ?? r.lead_id ?? "—"}</td>
+                    <td className="py-3 text-muted-foreground">{r.agents?.nome ?? "—"}</td>
                     <td className="py-3">
                       <Badge variant="outline" className={interesseBadge(r.interesse)}>
                         {r.interesse}
                       </Badge>
                     </td>
                     <td className="py-3">
-                      <Badge variant="outline" className="border-[#2a2a2a] text-[#888]">
+                      <Badge variant="outline" className="border-border text-muted-foreground">
                         {proximo(r.proxima_acao)}
                       </Badge>
                     </td>
-                    <td className="py-3 text-[#555] text-[12px]">{new Date(r.criado_em).toLocaleDateString("pt-BR")}</td>
+                    <td className="py-3 text-muted-foreground text-[12px]">{new Date(r.criado_em).toLocaleDateString("pt-BR")}</td>
                   </tr>
                 ))}
                 {!recent?.data?.length && (
                   <tr>
-                    <td colSpan={5} className="py-8 text-center text-[#555] text-sm">
+                    <td colSpan={5} className="py-8 text-center text-muted-foreground text-sm">
                       Nenhuma ligação ainda
                     </td>
                   </tr>

@@ -113,27 +113,27 @@ export default function LeadsPage() {
         className="flex items-center justify-between"
       >
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-white">Leads</h1>
-          <p className="text-[#666] text-sm mt-1">{data?.count ?? 0} leads cadastrados</p>
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Leads</h1>
+          <p className="text-muted-foreground text-sm mt-1">{data?.count ?? 0} leads cadastrados</p>
         </div>
-        <Button onClick={() => { setForm(EMPTY); setOpenForm(true); }} className="bg-[#ff4400] hover:bg-[#e03d00] text-white border-0">
+        <Button onClick={() => { setForm(EMPTY); setOpenForm(true); }} className="bg-primary hover:bg-primary/90 text-foreground border-0">
           <Plus className="w-4 h-4 mr-1.5" /> Novo lead
         </Button>
       </motion.div>
 
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.1 }} className="flex gap-3">
         <Input placeholder="Buscar por nome, empresa ou telefone…" value={search}
-          onChange={e => setSearch(e.target.value)} className="max-w-xs bg-[#111] border-[#2a2a2a] text-[#ccc] placeholder:text-[#444]" />
+          onChange={e => setSearch(e.target.value)} className="max-w-xs bg-card border-border text-foreground placeholder:text-muted-foreground" />
         <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v ?? "all")}>
-          <SelectTrigger className="w-44 bg-[#111] border-[#2a2a2a] text-[#ccc]"><SelectValue /></SelectTrigger>
-          <SelectContent className="bg-[#161616] border-[#2a2a2a]">
+          <SelectTrigger className="w-44 bg-card border-border text-foreground"><SelectValue /></SelectTrigger>
+          <SelectContent className="bg-accent border-border">
             <SelectItem value="all">Todos os status</SelectItem>
             {Object.entries(STATUS_LABELS).map(([v, l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}
           </SelectContent>
         </Select>
         <Select value={agentFilter} onValueChange={(v) => setAgentFilter(v ?? "all")}>
-          <SelectTrigger className="w-48 bg-[#111] border-[#2a2a2a] text-[#ccc]"><SelectValue placeholder="Agente" /></SelectTrigger>
-          <SelectContent className="bg-[#161616] border-[#2a2a2a]">
+          <SelectTrigger className="w-48 bg-card border-border text-foreground"><SelectValue placeholder="Agente" /></SelectTrigger>
+          <SelectContent className="bg-accent border-border">
             <SelectItem value="all">Todos os agentes</SelectItem>
             {agentsList?.map((a) => (
               <SelectItem key={a.id} value={a.id}>
@@ -145,31 +145,31 @@ export default function LeadsPage() {
       </motion.div>
 
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}
-        className="rounded-xl border border-[#1e1e1e] bg-[#111] overflow-hidden"
+        className="rounded-xl border border-border bg-card overflow-hidden"
       >
         <table className="w-full text-sm">
-          <thead className="border-b border-[#1e1e1e]">
+          <thead className="border-b border-border">
             <tr>
               {["Nome", "Empresa", "Telefone", "Agente", "Status", "Tentativas", ""].map((h) => (
-                <th key={h} className="text-left px-4 py-3 font-medium text-[#555] text-[11px] uppercase tracking-wide">{h}</th>
+                <th key={h} className="text-left px-4 py-3 font-medium text-muted-foreground text-[11px] uppercase tracking-wide">{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {isLoading ? (
-              <tr><td colSpan={7} className="text-center py-12 text-[#555]">Carregando…</td></tr>
+              <tr><td colSpan={7} className="text-center py-12 text-muted-foreground">Carregando…</td></tr>
             ) : data?.data?.length === 0 ? (
-              <tr><td colSpan={7} className="text-center py-12 text-[#555]">Nenhum lead encontrado</td></tr>
+              <tr><td colSpan={7} className="text-center py-12 text-muted-foreground">Nenhum lead encontrado</td></tr>
             ) : data?.data?.map((lead) => (
-              <tr key={lead.id} className="border-b border-[#1a1a1a] last:border-0 hover:bg-[#161616] transition-colors">
-                <td className="px-4 py-3 font-medium text-white">{lead.nome}</td>
-                <td className="px-4 py-3 text-[#888]">{lead.empresa ?? "—"}</td>
-                <td className="px-4 py-3 text-[#888]">{lead.telefone}</td>
-                <td className="px-4 py-3 text-[#888]">{lead.agents?.nome ?? "—"}</td>
+              <tr key={lead.id} className="border-b border-border last:border-0 hover:bg-accent transition-colors">
+                <td className="px-4 py-3 font-medium text-foreground">{lead.nome}</td>
+                <td className="px-4 py-3 text-muted-foreground">{lead.empresa ?? "—"}</td>
+                <td className="px-4 py-3 text-muted-foreground">{lead.telefone}</td>
+                <td className="px-4 py-3 text-muted-foreground">{lead.agents?.nome ?? "—"}</td>
                 <td className="px-4 py-3">
                   <Badge variant="outline" className={statusBadge(lead.status)}>{STATUS_LABELS[lead.status]}</Badge>
                 </td>
-                <td className="px-4 py-3 text-[#666]">{lead.tentativas}</td>
+                <td className="px-4 py-3 text-muted-foreground">{lead.tentativas}</td>
                 <td className="px-4 py-3">
                   <div className="flex gap-1 justify-end">
                     <Button size="icon" variant="ghost" onClick={() => call.mutate(lead.id)} title="Ligar agora"
@@ -177,16 +177,16 @@ export default function LeadsPage() {
                       <Phone className="w-3.5 h-3.5 text-green-500" />
                     </Button>
                     <Button size="icon" variant="ghost" onClick={() => { setForm(lead); setOpenForm(true); }}
-                      className="w-8 h-8 hover:bg-[#2a2a2a]">
-                      <Pencil className="w-3.5 h-3.5 text-[#888]" />
+                      className="w-8 h-8 hover:bg-accent">
+                      <Pencil className="w-3.5 h-3.5 text-muted-foreground" />
                     </Button>
                     <Button size="icon" variant="ghost" onClick={() => remove.mutate(lead.id)}
                       className="w-8 h-8 hover:bg-red-500/10">
                       <Trash2 className="w-3.5 h-3.5 text-red-500" />
                     </Button>
                     <Button size="icon" variant="ghost" onClick={() => setSelectedLead(lead.id)}
-                      className="w-8 h-8 hover:bg-[#2a2a2a]">
-                      <ChevronRight className="w-3.5 h-3.5 text-[#888]" />
+                      className="w-8 h-8 hover:bg-accent">
+                      <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />
                     </Button>
                   </div>
                 </td>
@@ -198,19 +198,19 @@ export default function LeadsPage() {
 
       {/* Form dialog */}
       <Dialog open={openForm} onOpenChange={setOpenForm}>
-        <DialogContent className="max-w-lg bg-[#111] border-[#2a2a2a]">
-          <DialogHeader><DialogTitle className="text-white">{form.id ? "Editar lead" : "Novo lead"}</DialogTitle></DialogHeader>
+        <DialogContent className="max-w-lg bg-card border-border">
+          <DialogHeader><DialogTitle className="text-foreground">{form.id ? "Editar lead" : "Novo lead"}</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-3 py-2">
             <div>
-              <Label className="text-xs mb-1 text-[#888]">Agente</Label>
+              <Label className="text-xs mb-1 text-muted-foreground">Agente</Label>
               <Select
                 value={form.agent_id ?? "none"}
                 onValueChange={(v) => setForm((f) => ({ ...f, agent_id: v === "none" ? undefined : v }))}
               >
-                <SelectTrigger className="bg-[#1a1a1a] border-[#2a2a2a] text-[#ccc]">
+                <SelectTrigger className="bg-muted border-border text-foreground">
                   <SelectValue placeholder="Padrão global" />
                 </SelectTrigger>
-                <SelectContent className="bg-[#161616] border-[#2a2a2a]">
+                <SelectContent className="bg-accent border-border">
                   <SelectItem value="none">Padrão global (bot)</SelectItem>
                   {agentsList?.map((a) => (
                     <SelectItem key={a.id} value={a.id}>
@@ -221,15 +221,15 @@ export default function LeadsPage() {
               </Select>
             </div>
             <div>
-              <Label className="text-xs mb-1 text-[#888]">Campanha</Label>
+              <Label className="text-xs mb-1 text-muted-foreground">Campanha</Label>
               <Select
                 value={form.campaign_id ?? "none"}
                 onValueChange={(v) => setForm((f) => ({ ...f, campaign_id: v === "none" ? undefined : v ?? undefined }))}
               >
-                <SelectTrigger className="bg-[#1a1a1a] border-[#2a2a2a] text-[#ccc]">
+                <SelectTrigger className="bg-muted border-border text-foreground">
                   <SelectValue placeholder="Nenhuma" />
                 </SelectTrigger>
-                <SelectContent className="bg-[#161616] border-[#2a2a2a]">
+                <SelectContent className="bg-accent border-border">
                   <SelectItem value="none">Nenhuma campanha</SelectItem>
                   {campaignsList?.map((c) => (
                     <SelectItem key={c.id} value={c.id}>
@@ -247,9 +247,9 @@ export default function LeadsPage() {
               { key: "origem", label: "Origem", placeholder: "formulário web" },
             ].map(({ key, label, placeholder }) => (
               <div key={key}>
-                <Label className="text-xs mb-1 text-[#888]">{label}</Label>
+                <Label className="text-xs mb-1 text-muted-foreground">{label}</Label>
                 <Input placeholder={placeholder}
-                  className={`bg-[#1a1a1a] border-[#2a2a2a] text-[#ccc] placeholder:text-[#444] ${
+                  className={`bg-muted border-border text-foreground placeholder:text-muted-foreground ${
                     key === "telefone" && form.telefone && !E164_RE.test(form.telefone)
                       ? "border-red-500/60"
                       : ""
@@ -259,33 +259,33 @@ export default function LeadsPage() {
               </div>
             ))}
             <div className="col-span-2">
-              <Label className="text-xs mb-1 text-[#888]">Objetivo da ligação</Label>
+              <Label className="text-xs mb-1 text-muted-foreground">Objetivo da ligação</Label>
               <Input placeholder="confirmar interesse em receber proposta"
-                className="bg-[#1a1a1a] border-[#2a2a2a] text-[#ccc] placeholder:text-[#444]"
+                className="bg-muted border-border text-foreground placeholder:text-muted-foreground"
                 value={form.objetivo ?? ""} onChange={e => setForm(f => ({ ...f, objetivo: e.target.value }))} />
             </div>
             <div className="col-span-2">
-              <Label className="text-xs mb-1 text-[#888]">Produto / oferta</Label>
+              <Label className="text-xs mb-1 text-muted-foreground">Produto / oferta</Label>
               <Input placeholder="Automação de atendimento"
-                className="bg-[#1a1a1a] border-[#2a2a2a] text-[#ccc] placeholder:text-[#444]"
+                className="bg-muted border-border text-foreground placeholder:text-muted-foreground"
                 value={form.oferta ?? ""} onChange={e => setForm(f => ({ ...f, oferta: e.target.value }))} />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setOpenForm(false)} className="border-[#2a2a2a] text-[#888] hover:text-white">Cancelar</Button>
+            <Button variant="outline" onClick={() => setOpenForm(false)} className="border-border text-muted-foreground hover:text-foreground">Cancelar</Button>
             <Button onClick={() => save.mutate(form)} disabled={save.isPending}
-              className="bg-[#ff4400] hover:bg-[#e03d00] text-white border-0">Salvar</Button>
+              className="bg-primary hover:bg-primary/90 text-foreground border-0">Salvar</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* Detail sheet */}
       <Sheet open={!!selectedLead} onOpenChange={o => !o && setSelectedLead(null)}>
-        <SheetContent className="w-[420px] overflow-y-auto bg-[#0f0f0f] border-[#1e1e1e]">
-          <SheetHeader><SheetTitle className="text-white">{detail?.nome}</SheetTitle></SheetHeader>
+        <SheetContent className="w-[420px] overflow-y-auto bg-card border-border">
+          <SheetHeader><SheetTitle className="text-foreground">{detail?.nome}</SheetTitle></SheetHeader>
           {detail && (
             <div className="mt-4 space-y-5 text-sm">
-              <div className="grid grid-cols-2 gap-y-3 text-[#888]">
+              <div className="grid grid-cols-2 gap-y-3 text-muted-foreground">
                 {[
                   ["Agente", detail.agents?.nome ?? "Padrão global"],
                   ["Empresa", detail.empresa ?? "—"],
@@ -294,45 +294,45 @@ export default function LeadsPage() {
                   ["Tentativas", String(detail.tentativas)],
                 ].map(([k, v]) => (
                   <span key={k} className="contents">
-                    <span className="font-medium text-[#ccc]">{k}</span>
+                    <span className="font-medium text-foreground">{k}</span>
                     <span>{v}</span>
                   </span>
                 ))}
-                <span className="font-medium text-[#ccc]">Status</span>
+                <span className="font-medium text-foreground">Status</span>
                 <Badge variant="outline" className={statusBadge(detail.status)}>{STATUS_LABELS[detail.status]}</Badge>
               </div>
 
               <div>
-                <p className="font-medium text-[#ccc] mb-2">Informações coletadas</p>
-                {detail.info_chave?.length === 0 && <p className="text-[#555] text-xs">Nenhuma ainda</p>}
+                <p className="font-medium text-foreground mb-2">Informações coletadas</p>
+                {detail.info_chave?.length === 0 && <p className="text-muted-foreground text-xs">Nenhuma ainda</p>}
                 <div className="space-y-1">
                   {detail.info_chave?.map(i => (
-                    <div key={i.id} className="flex gap-2 bg-[#1a1a1a] rounded-lg px-3 py-1.5">
-                      <span className="font-medium text-[#ccc]">{i.chave}:</span>
-                      <span className="text-[#888]">{i.valor}</span>
+                    <div key={i.id} className="flex gap-2 bg-muted rounded-lg px-3 py-1.5">
+                      <span className="font-medium text-foreground">{i.chave}:</span>
+                      <span className="text-muted-foreground">{i.valor}</span>
                     </div>
                   ))}
                 </div>
                 <div className="flex gap-2 mt-2">
                   <Input placeholder="chave" value={newInfo.chave} onChange={e => setNewInfo(n => ({ ...n, chave: e.target.value }))}
-                    className="h-8 text-xs bg-[#1a1a1a] border-[#2a2a2a] text-[#ccc] placeholder:text-[#444]" />
+                    className="h-8 text-xs bg-muted border-border text-foreground placeholder:text-muted-foreground" />
                   <Input placeholder="valor" value={newInfo.valor} onChange={e => setNewInfo(n => ({ ...n, valor: e.target.value }))}
-                    className="h-8 text-xs bg-[#1a1a1a] border-[#2a2a2a] text-[#ccc] placeholder:text-[#444]" />
-                  <Button size="sm" onClick={() => addInfo.mutate()} className="bg-[#ff4400] hover:bg-[#e03d00] text-white border-0 h-8">+</Button>
+                    className="h-8 text-xs bg-muted border-border text-foreground placeholder:text-muted-foreground" />
+                  <Button size="sm" onClick={() => addInfo.mutate()} className="bg-primary hover:bg-primary/90 text-foreground border-0 h-8">+</Button>
                 </div>
               </div>
 
               <div>
-                <p className="font-medium text-[#ccc] mb-2">Histórico de ligações</p>
-                {detail.historico_ligacoes?.length === 0 && <p className="text-[#555] text-xs">Nenhuma ligação ainda</p>}
+                <p className="font-medium text-foreground mb-2">Histórico de ligações</p>
+                {detail.historico_ligacoes?.length === 0 && <p className="text-muted-foreground text-xs">Nenhuma ligação ainda</p>}
                 <div className="space-y-2">
                   {detail.historico_ligacoes?.map(r => (
-                    <div key={r.id} className="border border-[#1e1e1e] bg-[#141414] rounded-lg px-3 py-2 space-y-1">
+                    <div key={r.id} className="border border-border bg-card rounded-lg px-3 py-2 space-y-1">
                       <div className="flex gap-2">
                         <Badge variant="outline" className={`text-xs ${interesseBadge(r.interesse)}`}>{r.interesse}</Badge>
-                        <span className="text-[#555] text-xs">{new Date(r.criado_em).toLocaleDateString("pt-BR")}</span>
+                        <span className="text-muted-foreground text-xs">{new Date(r.criado_em).toLocaleDateString("pt-BR")}</span>
                       </div>
-                      <p className="text-[#888] text-xs">{r.resumo}</p>
+                      <p className="text-muted-foreground text-xs">{r.resumo}</p>
                     </div>
                   ))}
                 </div>

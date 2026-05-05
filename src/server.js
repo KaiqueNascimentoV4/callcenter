@@ -109,13 +109,36 @@ app.post("/calls/start", async (req, res) => {
   if (!lead) return res.status(404).json({ error: "Lead não encontrado" });
   if (lead.status === "nao_contatar") return res.status(400).json({ error: "Lead marcado como não contatar" });
 
+  const agentRow = lead.agent_id ? await getAgentById(lead.agent_id) : null;
+  const agentCfg = await getEffectiveAgentConfig(agentRow);
+
   try {
-    const call = await createCall({ to: lead.telefone, leadId, campaignId });
+    const call = await createCall({
+      to: lead.telefone,
+      leadId,
+      campaignId,
+      deteccaoVoicemail: agentCfg.deteccao_voicemail,
+    });
     res.json({ callSid: call.sid, status: call.status });
   } catch (err) {
     console.error("[/calls/start]", err);
     res.status(500).json({ error: err.message });
   }
+});
+
+// AMD status callback — cancela ligação se for voicemail
+app.post("/hooks/amd-status", async (req, res) => {
+  const { CallSid, AnsweredBy } = req.body;
+  if (AnsweredBy && AnsweredBy.startsWith("machine")) {
+    console.log(`[AMD] ${CallSid} → voicemail detectado (${AnsweredBy}) — cancelando`);
+    try {
+      const twClient = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
+      await twClient.calls(CallSid).update({ status: "completed" });
+    } catch (e) {
+      console.error("[AMD] Erro ao cancelar call", e.message);
+    }
+  }
+  res.sendStatus(204);
 });
 
 // ─── Routes: Leads ───────────────────────────────────────────────────────────
@@ -353,8 +376,13 @@ app.post("/hooks/inbound/:token", async (req, res) => {
     tentativas: 0,
   });
 
+  const inboundAgentCfg = await getEffectiveAgentConfig(agent);
   try {
-    const call = await createCall({ to: lead.telefone, leadId: lead.id });
+    const call = await createCall({
+      to: lead.telefone,
+      leadId: lead.id,
+      deteccaoVoicemail: inboundAgentCfg.deteccao_voicemail,
+    });
     res.json({ ok: true, leadId: lead.id, callSid: call.sid, status: call.status });
   } catch (err) {
     console.error("[hooks/inbound]", err);
@@ -516,7 +544,14 @@ wss.on("connection", (twilioWs) => {
             console.error("[FC] Erro ao salvar resultado", err);
           }
 
-          const webhookPayload = { callSid, leadId, agentId: wsAgentId, ...fc.args };
+          const conv = await getTranscriptsConversation(callSid).catch(() => ({ bubbles: [] }));
+          const webhookPayload = {
+            callSid,
+            leadId,
+            agentId: wsAgentId,
+            ...fc.args,
+            transcricao: conv.bubbles ?? [],
+          };
 
           if (process.env.N8N_WEBHOOK_URL) {
             fetch(process.env.N8N_WEBHOOK_URL, {
@@ -589,6 +624,9 @@ wss.on("connection", (twilioWs) => {
               systemPrompt,
               model: botConfig.modelo_gemini,
               voice: botConfig.voz,
+              vadSilencioMs: botConfig.vad_silencio_ms,
+              vadSensStart: botConfig.vad_sensibilidade_inicio,
+              vadSensEnd: botConfig.vad_sensibilidade_fim,
               onMessage: handleGeminiMessage,
               onError: (e) => console.error("[Gemini] error", e),
               onClose: (e) => console.log("[Gemini] closed", e?.reason ?? ""),
@@ -596,6 +634,7 @@ wss.on("connection", (twilioWs) => {
             console.log("[Gemini] Sessão aberta");
 
             if (botConfig.quem_fala_primeiro === "agente") {
+              const delay = botConfig.primeiro_turno_delay_ms ?? 500;
               setTimeout(() => {
                 try {
                   geminiSession?.sendClientContent({
@@ -605,7 +644,7 @@ wss.on("connection", (twilioWs) => {
                 } catch (e) {
                   console.error("[WS] sendClientContent", e);
                 }
-              }, 500);
+              }, delay);
             }
 
             const timeout = (botConfig.timeout_segundos ?? 120) * 1000;
@@ -619,6 +658,24 @@ wss.on("connection", (twilioWs) => {
                 console.error("[WS] timeout close", e);
               }
             }, timeout);
+
+            // Timer de silêncio — encerra a ligação após N segundos sem fala detectada
+            if ((botConfig.silencio_encerrar_seg ?? 0) > 0) {
+              let silenceTimer = null;
+              const resetSilence = () => {
+                clearTimeout(silenceTimer);
+                silenceTimer = setTimeout(() => {
+                  console.log(`[WS] Silêncio de ${botConfig.silencio_encerrar_seg}s — encerrando`);
+                  try { geminiSession?.close(); } catch {}
+                }, botConfig.silencio_encerrar_seg * 1000);
+              };
+              resetSilence();
+              // Reiniciar timer cada vez que chega áudio do usuário
+              const origSend = geminiSession.sendRealtimeInput?.bind(geminiSession);
+              if (origSend) {
+                geminiSession.sendRealtimeInput = (...args) => { resetSilence(); return origSend(...args); };
+              }
+            }
           } catch (err) {
             console.error("[Gemini] Falha ao abrir sessão", err);
           }

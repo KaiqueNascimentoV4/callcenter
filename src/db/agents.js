@@ -31,6 +31,14 @@ export async function getEffectiveAgentConfig(agentRow) {
     instrucoes_background: agentRow.instrucoes_background ?? "",
     empresa_contexto: ctx,
     webhook_saida_url: agentRow.webhook_saida_url ?? null,
+    // Comportamento avançado
+    vad_silencio_ms: agentRow.vad_silencio_ms ?? 800,
+    vad_sensibilidade_inicio: agentRow.vad_sensibilidade_inicio ?? "START_SENSITIVITY_LOW",
+    vad_sensibilidade_fim: agentRow.vad_sensibilidade_fim ?? "END_SENSITIVITY_LOW",
+    interrupcao_habilitada: agentRow.interrupcao_habilitada ?? true,
+    primeiro_turno_delay_ms: agentRow.primeiro_turno_delay_ms ?? 500,
+    silencio_encerrar_seg: agentRow.silencio_encerrar_seg ?? 0,
+    deteccao_voicemail: agentRow.deteccao_voicemail ?? false,
   };
 }
 

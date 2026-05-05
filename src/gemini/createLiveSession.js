@@ -11,13 +11,26 @@ function getAI() {
  * Abre uma sessão Gemini Live para uma chamada.
  * @param {object} opts
  * @param {string}   opts.systemPrompt
- * @param {string}   opts.model        — lido do bot_config
- * @param {string}   opts.voice        — lido do bot_config
+ * @param {string}   opts.model
+ * @param {string}   opts.voice
+ * @param {number}   [opts.vadSilencioMs]          — ms de silêncio antes de cortar (padrão 800)
+ * @param {string}   [opts.vadSensStart]            — START_SENSITIVITY_LOW/MEDIUM/HIGH
+ * @param {string}   [opts.vadSensEnd]              — END_SENSITIVITY_LOW/MEDIUM/HIGH
  * @param {function} opts.onMessage
  * @param {function} [opts.onError]
  * @param {function} [opts.onClose]
  */
-export async function createLiveSession({ systemPrompt, model, voice, onMessage, onError, onClose }) {
+export async function createLiveSession({
+  systemPrompt,
+  model,
+  voice,
+  vadSilencioMs,
+  vadSensStart,
+  vadSensEnd,
+  onMessage,
+  onError,
+  onClose,
+}) {
   const ai = getAI();
 
   const session = await ai.live.connect({
@@ -36,14 +49,13 @@ export async function createLiveSession({ systemPrompt, model, voice, onMessage,
       inputAudioTranscription: {},
       outputAudioTranscription: {},
 
-      // Reduz cortes prematuros e falsos inícios de fala
       realtimeInputConfig: {
         automaticActivityDetection: {
           disabled: false,
-          startOfSpeechSensitivity: "START_SENSITIVITY_LOW",
-          endOfSpeechSensitivity: "END_SENSITIVITY_LOW",
+          startOfSpeechSensitivity: vadSensStart ?? "START_SENSITIVITY_LOW",
+          endOfSpeechSensitivity: vadSensEnd ?? "END_SENSITIVITY_LOW",
           prefixPaddingMs: 200,
-          silenceDurationMs: 800,
+          silenceDurationMs: vadSilencioMs ?? 800,
         },
       },
 
