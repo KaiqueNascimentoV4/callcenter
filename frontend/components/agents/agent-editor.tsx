@@ -666,7 +666,7 @@ function AgentEditorShell({ agentId, initialAgent }: { agentId?: string; initial
       <div className="panel-grid">
         <div className="space-y-6">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-            <TabsList className="h-auto w-full flex-wrap justify-start gap-2 rounded-2xl border border-border bg-card p-2">
+            <TabsList className="h-auto w-full flex-wrap justify-center gap-2 rounded-xl border border-border bg-card p-2 lg:justify-center xl:justify-between">
               {[
                 ["overview", "Visão geral"],
                 ["prompt", "Prompt e comportamento"],
@@ -675,7 +675,7 @@ function AgentEditorShell({ agentId, initialAgent }: { agentId?: string; initial
                 ["integrations", "Webhooks e integrações"],
                 ["test", "Teste do agente"],
               ].map(([value, label]) => (
-                <TabsTrigger key={value} value={value} className="rounded-xl px-4 py-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+                <TabsTrigger key={value} value={value} className="min-w-[170px] rounded-lg px-4 py-2 text-center data-[state=active]:bg-primary data-[state=active]:text-primary-foreground xl:min-w-[150px]">
                   {label}
                 </TabsTrigger>
               ))}

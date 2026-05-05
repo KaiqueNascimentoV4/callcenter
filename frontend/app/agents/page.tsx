@@ -18,9 +18,9 @@ import { toast } from "sonner";
 export default function AgentsPage() {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [voiceFilter, setVoiceFilter] = useState("all");
-  const [modelFilter, setModelFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("todos");
+  const [voiceFilter, setVoiceFilter] = useState("todos");
+  const [modelFilter, setModelFilter] = useState("todos");
 
   const { data: agents = [], isLoading } = useQuery({
     queryKey: ["agents", "management"],
@@ -50,11 +50,11 @@ export default function AgentsPage() {
           .some((value) => String(value).toLowerCase().includes(search.toLowerCase()));
 
       const matchesStatus =
-        statusFilter === "all" ||
-        (statusFilter === "active" ? agent.ativo : !agent.ativo);
+        statusFilter === "todos" ||
+        (statusFilter === "ativos" ? agent.ativo : !agent.ativo);
 
-      const matchesVoice = voiceFilter === "all" || agent.voz === voiceFilter;
-      const matchesModel = modelFilter === "all" || agent.modelo_gemini === modelFilter;
+      const matchesVoice = voiceFilter === "todos" || agent.voz === voiceFilter;
+      const matchesModel = modelFilter === "todos" || agent.modelo_gemini === modelFilter;
 
       return matchesSearch && matchesStatus && matchesVoice && matchesModel;
     });
@@ -95,10 +95,10 @@ export default function AgentsPage() {
       />
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="Total de agentes" value={totalAgents} hint="Todos os registros disponíveis" icon={Bot} />
-        <StatCard label="Agentes ativos" value={activeAgents} hint="Prontos para receber leads" icon={CircleCheckBig} />
-        <StatCard label="Agentes inativos" value={inactiveAgents} hint="Pausados ou desativados" icon={CircleOff} />
-        <StatCard label="Chamadas recentes" value={totalCalls} hint="Baseado nas últimas ligações registradas" icon={PhoneCall} />
+        <StatCard variant="blue" label="Total de agentes" value={totalAgents} hint="Todos os registros disponíveis" icon={Bot} />
+        <StatCard variant="green" label="Agentes ativos" value={activeAgents} hint="Prontos para receber leads" icon={CircleCheckBig} />
+        <StatCard variant="orange" label="Agentes inativos" value={inactiveAgents} hint="Pausados ou desativados" icon={CircleOff} />
+        <StatCard variant="purple" label="Chamadas recentes" value={totalCalls} hint="Baseado nas últimas ligações registradas" icon={PhoneCall} />
       </section>
 
       <div className="grid gap-6 2xl:grid-cols-[minmax(0,1fr)_320px]">
@@ -114,25 +114,25 @@ export default function AgentsPage() {
                   <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                   <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar por nome, empresa, voz ou modelo" className="pl-9" />
                 </div>
-                <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value ?? "all")}>
-                  <SelectTrigger className="w-[150px]"><SelectValue placeholder="Status" /></SelectTrigger>
+                <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value ?? "todos")}>
+                  <SelectTrigger className="w-[170px]"><SelectValue placeholder="Filtrar por status" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">Todos</SelectItem>
-                    <SelectItem value="active">Ativos</SelectItem>
-                    <SelectItem value="inactive">Inativos</SelectItem>
+                    <SelectItem value="todos">Todos os status</SelectItem>
+                    <SelectItem value="ativos">Ativos</SelectItem>
+                    <SelectItem value="inativos">Inativos</SelectItem>
                   </SelectContent>
                 </Select>
-                <Select value={voiceFilter} onValueChange={(value) => setVoiceFilter(value ?? "all")}>
-                  <SelectTrigger className="w-[160px]"><SelectValue placeholder="Voz" /></SelectTrigger>
+                <Select value={voiceFilter} onValueChange={(value) => setVoiceFilter(value ?? "todos")}>
+                  <SelectTrigger className="w-[190px]"><SelectValue placeholder="Filtrar por voz" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">Todas as vozes</SelectItem>
+                    <SelectItem value="todos">Todas as vozes</SelectItem>
                     {voiceOptions.map((voice) => <SelectItem key={voice} value={voice!}>{voice}</SelectItem>)}
                   </SelectContent>
                 </Select>
-                <Select value={modelFilter} onValueChange={(value) => setModelFilter(value ?? "all")}>
-                  <SelectTrigger className="w-[220px]"><SelectValue placeholder="Modelo" /></SelectTrigger>
+                <Select value={modelFilter} onValueChange={(value) => setModelFilter(value ?? "todos")}>
+                  <SelectTrigger className="w-[240px]"><SelectValue placeholder="Filtrar por modelo" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">Todos os modelos</SelectItem>
+                    <SelectItem value="todos">Todos os modelos</SelectItem>
                     {modelOptions.map((model) => <SelectItem key={model} value={model!}>{model}</SelectItem>)}
                   </SelectContent>
                 </Select>

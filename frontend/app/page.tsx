@@ -1,22 +1,42 @@
 "use client";
 
-import { Suspense, useMemo } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { agentsApi, resultsApi, statsApi } from "@/lib/api";
-import { PageHeader } from "@/components/app/page-header";
+import { getSupabase } from "@/lib/supabase";
 import { StatCard } from "@/components/app/stat-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Bot, PhoneCall, TrendingUp, Users, Zap } from "lucide-react";
+import { Bot, ChevronRight, Megaphone, PhoneCall, TrendingUp, Users, Zap } from "lucide-react";
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, BarChart, Bar, Legend } from "recharts";
 import { interesseBadge, proximo } from "@/lib/badges";
+import { cn } from "@/lib/utils";
+
+const quickAccess = [
+  { label: "Agentes", desc: "Gerencie identidade e configurações", href: "/agents", iconBg: "bg-purple-500/15 text-purple-400", icon: Bot },
+  { label: "Leads", desc: "Importe, distribua e filtre contatos", href: "/leads", iconBg: "bg-orange-500/15 text-orange-400", icon: Users },
+  { label: "Ligações", desc: "Transcrições e análise de interesse", href: "/results", iconBg: "bg-blue-500/15 text-blue-400", icon: PhoneCall },
+  { label: "Campanhas", desc: "Configure e dispare campanhas em lote", href: "/campaigns", iconBg: "bg-green-500/15 text-green-400", icon: Megaphone },
+];
 
 function DashboardContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const agentId = searchParams.get("agent") ?? "all";
+  const [firstName, setFirstName] = useState<string>("");
+
+  useEffect(() => {
+    async function loadUser() {
+      const { data: { user } } = await getSupabase().auth.getUser();
+      if (!user) return;
+      const name = user.user_metadata?.full_name ?? user.user_metadata?.name ?? user.email?.split("@")[0] ?? "";
+      setFirstName(name.split(" ")[0]);
+    }
+    void loadUser();
+  }, []);
 
   const { data: agents = [] } = useQuery({
     queryKey: ["agents", "dashboard"],
@@ -61,8 +81,6 @@ function DashboardContent() {
     [agentId, byAgent],
   );
 
-  const activeAgentsCount = agents.filter((agent) => agent.ativo).length;
-
   function setAgent(value: string) {
     const params = new URLSearchParams(searchParams.toString());
     if (value === "all") params.delete("agent");
@@ -72,38 +90,67 @@ function DashboardContent() {
 
   return (
     <div className="page-shell">
-      <PageHeader
-        eyebrow={agentId === "all" ? "Visão global" : "Visão por agente"}
-        title={agentId === "all" ? "Dashboard" : `Dashboard · ${selectedAgent?.nome ?? "Agente"}`}
-        description={agentId === "all"
-          ? "Acompanhe volume, interesse e evolução do time de agentes em uma visão operacional mais completa."
-          : "Todas as métricas, ligações recentes e tendências desta página estão centradas no agente selecionado."}
-        actions={
-          <div className="flex items-center gap-3">
-            <span className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">Contexto</span>
-            <Select value={agentId} onValueChange={(value) => setAgent(value ?? "all")}>
-              <SelectTrigger className="w-[260px]">
-                <SelectValue placeholder="Todos os agentes" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos os agentes</SelectItem>
-                {agents.map((agent) => (
-                  <SelectItem key={agent.id} value={agent.id}>
-                    {agent.nome}{!agent.ativo ? " (inativo)" : ""}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        }
-      />
+      {/* Welcome heading */}
+      <section className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
+        <div className="space-y-1">
+          <h1 className="text-[32px] font-bold tracking-tight text-foreground lg:text-[36px]">
+            {firstName ? `Bem-vindo, ${firstName}! 👋` : "Bem-vindo! 👋"}
+          </h1>
+          <p className="text-[15px] text-muted-foreground">
+            {agentId === "all"
+              ? "Acompanhe o desempenho do time de agentes em tempo real."
+              : `Visão centrada no agente: ${selectedAgent?.nome ?? "selecionado"}.`}
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          <span className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">Contexto</span>
+          <Select value={agentId} onValueChange={(value) => setAgent(value ?? "all")}>
+            <SelectTrigger className="w-[260px]">
+              <SelectValue placeholder="Todos os agentes" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos os agentes</SelectItem>
+              {agents.map((agent) => (
+                <SelectItem key={agent.id} value={agent.id}>
+                  {agent.nome}{!agent.ativo ? " (inativo)" : ""}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </section>
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-        <StatCard label="Ligações hoje" value={summary?.ligacoes_hoje ?? "—"} hint="Volume do dia" icon={PhoneCall} />
-        <StatCard label="Total de ligações" value={summary?.total_ligacoes ?? "—"} hint="Janela registrada no sistema" icon={Users} />
-        <StatCard label="Interesse alto" value={summary ? `${summary.taxa_interesse_alto}%` : "—"} hint="Taxa de alta intenção" icon={TrendingUp} />
-        <StatCard label="Conversão" value={summary ? `${summary.taxa_conversao}%` : "—"} hint="Alto ou médio interesse" icon={Zap} />
-        <StatCard label="Agentes ativos" value={agentId === "all" ? activeAgentsCount : selectedAgent?.ativo ? 1 : 0} hint={agentId === "all" ? "Ativos no ecossistema" : "Status do agente selecionado"} icon={Bot} />
+      {/* Colorful stat cards */}
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <StatCard variant="blue" label="Total de ligações" value={summary?.total_ligacoes ?? "—"} hint="Janela registrada no sistema" icon={PhoneCall} />
+        <StatCard variant="orange" label="Ligações hoje" value={summary?.ligacoes_hoje ?? "—"} hint="Volume do dia atual" icon={TrendingUp} />
+        <StatCard variant="green" label="Interesse alto" value={summary ? `${summary.taxa_interesse_alto}%` : "—"} hint="Taxa de alta intenção" icon={Zap} />
+        <StatCard variant="purple" label="Conversão" value={summary ? `${summary.taxa_conversao}%` : "—"} hint="Alto ou médio interesse" icon={Users} />
+      </section>
+
+      {/* Quick access */}
+      <section>
+        <h2 className="mb-3 text-[11px] font-bold uppercase tracking-[0.22em] text-muted-foreground">
+          Acesso rápido
+        </h2>
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {quickAccess.map(({ label, desc, href, iconBg, icon: Icon }) => (
+            <Link
+              key={href}
+              href={href}
+              className="group flex items-center gap-4 rounded-xl border border-border bg-card px-4 py-3.5 shadow-[var(--shadow-xs)] transition hover:border-primary/30 hover:shadow-[var(--shadow-sm)]"
+            >
+              <div className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-lg", iconBg)}>
+                <Icon className="h-[18px] w-[18px]" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-foreground">{label}</p>
+                <p className="truncate text-xs text-muted-foreground">{desc}</p>
+              </div>
+              <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground/50 transition group-hover:text-primary" />
+            </Link>
+          ))}
+        </div>
       </section>
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">

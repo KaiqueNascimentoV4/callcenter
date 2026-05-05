@@ -95,8 +95,8 @@ function parseBulkText(raw: string): Partial<Lead>[] {
 export default function LeadsPage() {
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [agentFilter, setAgentFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState("todos");
+  const [agentFilter, setAgentFilter] = useState<string>("todos");
   const [form, setForm] = useState<Partial<Lead>>(EMPTY);
   const [openForm, setOpenForm] = useState(false);
   const [selectedLead, setSelectedLead] = useState<string | null>(null);
@@ -122,8 +122,8 @@ export default function LeadsPage() {
     queryFn: () =>
       leadsApi.list({
         ...(search ? { q: search } : {}),
-        ...(statusFilter !== "all" ? { status: statusFilter } : {}),
-        ...(agentFilter !== "all" ? { agent_id: agentFilter } : {}),
+        ...(statusFilter !== "todos" ? { status: statusFilter } : {}),
+        ...(agentFilter !== "todos" ? { agent_id: agentFilter } : {}),
       }),
   });
 
@@ -257,9 +257,9 @@ export default function LeadsPage() {
       />
 
       <section className="grid gap-4 md:grid-cols-3">
-        <StatCard label="Leads visíveis" value={visibleStats.total} hint="Resultado do filtro atual" icon={Users} />
-        <StatCard label="Ativos" value={visibleStats.active} hint="Não arquivados" icon={UserRoundCheck} />
-        <StatCard label="Sem agente" value={visibleStats.unassigned} hint="Prontos para distribuição" icon={Plus} />
+        <StatCard variant="blue" label="Leads visíveis" value={visibleStats.total} hint="Resultado do filtro atual" icon={Users} />
+        <StatCard variant="green" label="Ativos" value={visibleStats.active} hint="Não arquivados" icon={UserRoundCheck} />
+        <StatCard variant="orange" label="Sem agente" value={visibleStats.unassigned} hint="Prontos para distribuição" icon={Plus} />
       </section>
 
       <Card className="border-border bg-card shadow-[var(--shadow-xs)]">
@@ -271,12 +271,12 @@ export default function LeadsPage() {
               onChange={(event) => setSearch(event.target.value)}
               className="w-full sm:max-w-sm"
             />
-            <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value ?? "all")}>
+            <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value ?? "todos")}>
               <SelectTrigger className="w-52">
-                <SelectValue />
+                <SelectValue placeholder="Filtrar por status" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Todos os status</SelectItem>
+                <SelectItem value="todos">Todos os status</SelectItem>
                 {Object.entries(STATUS_LABELS).map(([value, label]) => (
                   <SelectItem key={value} value={value}>
                     {label}
@@ -284,12 +284,12 @@ export default function LeadsPage() {
                 ))}
               </SelectContent>
             </Select>
-            <Select value={agentFilter} onValueChange={(value) => setAgentFilter(value ?? "all")}>
+            <Select value={agentFilter} onValueChange={(value) => setAgentFilter(value ?? "todos")}>
               <SelectTrigger className="w-60">
-                <SelectValue placeholder="Agente" />
+                <SelectValue placeholder="Filtrar por agente" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Todos os agentes</SelectItem>
+                <SelectItem value="todos">Todos os agentes</SelectItem>
                 {agentsList?.map((agent) => (
                   <SelectItem key={agent.id} value={agent.id}>
                     {agent.nome}

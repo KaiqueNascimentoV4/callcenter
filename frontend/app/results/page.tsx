@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { resultsApi, agentsApi, type CallResult } from "@/lib/api";
+import { PageHeader } from "@/components/app/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -13,10 +14,10 @@ import { motion } from "framer-motion";
 type Bubble = { role: "user" | "agent"; texto: string; ts: string; ts_end?: string };
 
 export default function ResultsPage() {
-  const [interesse, setInteresse] = useState<string>("all");
-  const [humor, setHumor] = useState<string>("all");
-  const [proxima, setProxima] = useState<string>("all");
-  const [agentFilter, setAgentFilter] = useState<string>("all");
+  const [interesse, setInteresse] = useState<string>("todos");
+  const [humor, setHumor] = useState<string>("todos");
+  const [proxima, setProxima] = useState<string>("todos");
+  const [agentFilter, setAgentFilter] = useState<string>("todos");
   const [selected, setSelected] = useState<CallResult | null>(null);
   const [bubbles, setBubbles] = useState<Bubble[]>([]);
   const [loadingT, setLoadingT] = useState(false);
@@ -30,10 +31,10 @@ export default function ResultsPage() {
     queryKey: ["results", interesse, humor, proxima, agentFilter],
     queryFn: () =>
       resultsApi.list({
-        ...(interesse !== "all" ? { interesse } : {}),
-        ...(humor !== "all" ? { humor } : {}),
-        ...(proxima !== "all" ? { proxima_acao: proxima } : {}),
-        ...(agentFilter !== "all" ? { agent_id: agentFilter } : {}),
+        ...(interesse !== "todos" ? { interesse } : {}),
+        ...(humor !== "todos" ? { humor } : {}),
+        ...(proxima !== "todos" ? { proxima_acao: proxima } : {}),
+        ...(agentFilter !== "todos" ? { agent_id: agentFilter } : {}),
       }),
   });
 
@@ -52,18 +53,19 @@ export default function ResultsPage() {
 
   return (
     <div className="page-shell">
-      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }}>
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Ligações</h1>
-        <p className="text-muted-foreground text-sm mt-1">Histórico e transcrições (agregadas por fala)</p>
-      </motion.div>
+      <PageHeader
+        eyebrow="Operação / Ligações"
+        title="Ligações"
+        description="Histórico completo de chamadas com transcrições e análise de interesse."
+      />
 
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.1 }} className="flex gap-3 flex-wrap">
-        <Select value={agentFilter} onValueChange={(v) => setAgentFilter(v ?? "all")}>
+        <Select value={agentFilter} onValueChange={(v) => setAgentFilter(v ?? "todos")}>
           <SelectTrigger className="w-56">
-            <SelectValue placeholder="Agente" />
+            <SelectValue placeholder="Filtrar por agente" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Todos os agentes</SelectItem>
+            <SelectItem value="todos">Todos os agentes</SelectItem>
             {agentsList?.map((a) => (
               <SelectItem key={a.id} value={a.id}>
                 {a.nome}
@@ -75,28 +77,28 @@ export default function ResultsPage() {
           {
             label: "Interesse",
             state: interesse,
-            set: (v: string | null) => setInteresse(v ?? "all"),
+            set: (v: string | null) => setInteresse(v ?? "todos"),
             opts: ["alto", "medio", "baixo", "sem_interesse", "incerto"],
           },
           {
             label: "Humor",
             state: humor,
-            set: (v: string | null) => setHumor(v ?? "all"),
+            set: (v: string | null) => setHumor(v ?? "todos"),
             opts: ["positivo", "neutro", "negativo", "irritado", "incerto"],
           },
           {
             label: "Próxima ação",
             state: proxima,
-            set: (v: string | null) => setProxima(v ?? "all"),
+            set: (v: string | null) => setProxima(v ?? "todos"),
             opts: ["enviar_whatsapp", "enviar_email", "agendar_reuniao", "nao_contatar", "revisar_manualmente"],
           },
         ].map(({ label, state, set, opts }) => (
           <Select key={label} value={state} onValueChange={set}>
             <SelectTrigger className="w-52">
-              <SelectValue placeholder={label} />
+              <SelectValue placeholder={`Filtrar por ${label.toLowerCase()}`} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Todos ({label})</SelectItem>
+              <SelectItem value="todos">Todos os valores</SelectItem>
               {opts.map((o) => (
                 <SelectItem key={o} value={o}>
                   {o.replace(/_/g, " ")}

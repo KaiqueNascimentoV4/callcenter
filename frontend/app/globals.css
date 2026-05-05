@@ -89,18 +89,18 @@
 
 /* ── Dark mode ────────────────────────────────────────────────────────────── */
 .dark {
-  --background: #09111f;
+  --background: #0d1117;
   --foreground: #edf2ff;
-  --card: #0f172a;
+  --card: #0f1923;
   --card-foreground: #edf2ff;
-  --popover: #0f172a;
+  --popover: #0f1923;
   --popover-foreground: #edf2ff;
   --primary: #ff4b23;
   --primary-foreground: #ffffff;
   --secondary: #111c34;
   --secondary-foreground: #edf2ff;
   --muted: #0d1830;
-  --muted-foreground: #98a7c8;
+  --muted-foreground: #8896b3;
   --accent: #111c34;
   --accent-foreground: #edf2ff;
   --destructive: #ef4444;
@@ -115,13 +115,13 @@
   --shadow-xs: 0 1px 1px rgba(0, 0, 0, 0.32), 0 0 0 1px rgba(255, 255, 255, 0.04);
   --shadow-sm: 0 14px 34px rgba(0, 0, 0, 0.42);
   --shadow-md: 0 22px 60px rgba(0, 0, 0, 0.5);
-  --sidebar: #0b1426;
+  --sidebar: #080e18;
   --sidebar-foreground: #edf2ff;
   --sidebar-primary: #ff4b23;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: rgba(255, 255, 255, 0.05);
+  --sidebar-accent: rgba(255, 255, 255, 0.04);
   --sidebar-accent-foreground: #edf2ff;
-  --sidebar-border: rgba(255, 255, 255, 0.08);
+  --sidebar-border: rgba(255, 255, 255, 0.07);
   --sidebar-ring: #ff4b23;
 }
 
@@ -172,5 +172,26 @@
 
   .surface-panel {
     @apply rounded-xl border border-border bg-card shadow-[var(--shadow-xs)];
+  }
+
+  .stat-gradient-blue {
+    background: linear-gradient(135deg, #1e40af 0%, #2563eb 60%, #3b82f6 100%);
+    border-color: rgba(59, 130, 246, 0.25);
+    color: #ffffff;
+  }
+  .stat-gradient-orange {
+    background: linear-gradient(135deg, #92400e 0%, #d97706 60%, #f59e0b 100%);
+    border-color: rgba(245, 158, 11, 0.25);
+    color: #ffffff;
+  }
+  .stat-gradient-green {
+    background: linear-gradient(135deg, #065f46 0%, #059669 60%, #10b981 100%);
+    border-color: rgba(16, 185, 129, 0.25);
+    color: #ffffff;
+  }
+  .stat-gradient-purple {
+    background: linear-gradient(135deg, #5b21b6 0%, #7c3aed 60%, #a855f7 100%);
+    border-color: rgba(168, 85, 247, 0.25);
+    color: #ffffff;
   }
 }

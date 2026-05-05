@@ -24,13 +24,31 @@ import { getSupabase } from "@/lib/supabase";
 import { adminApi } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
-const baseLinks = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/agents", label: "Agentes", icon: Bot },
-  { href: "/leads", label: "Leads", icon: Users },
-  { href: "/results", label: "Ligações", icon: PhoneCall },
-  { href: "/campaigns", label: "Campanhas", icon: Megaphone },
-  { href: "/config", label: "Configurações", icon: Settings },
+type NavLink = { href: string; label: string; icon: React.ElementType };
+type NavGroup = { label: string; links: NavLink[] };
+
+const baseGroups: NavGroup[] = [
+  {
+    label: "PRINCIPAL",
+    links: [
+      { href: "/", label: "Dashboard", icon: LayoutDashboard },
+      { href: "/campaigns", label: "Campanhas", icon: Megaphone },
+    ],
+  },
+  {
+    label: "OPERAÇÃO",
+    links: [
+      { href: "/agents", label: "Agentes", icon: Bot },
+      { href: "/leads", label: "Leads", icon: Users },
+      { href: "/results", label: "Ligações", icon: PhoneCall },
+    ],
+  },
+  {
+    label: "SISTEMA",
+    links: [
+      { href: "/config", label: "Configurações", icon: Settings },
+    ],
+  },
 ];
 
 export function Sidebar() {
@@ -68,10 +86,13 @@ export function Sidebar() {
     void load();
   }, []);
 
-  const links = useMemo(
-    () => (isAdmin ? [...baseLinks, { href: "/admin", label: "Admin", icon: ShieldCheck }] : baseLinks),
-    [isAdmin],
-  );
+  const allGroups = useMemo<NavGroup[]>(() => {
+    if (!isAdmin) return baseGroups;
+    return [
+      ...baseGroups,
+      { label: "ADMIN", links: [{ href: "/admin", label: "Admin", icon: ShieldCheck }] },
+    ];
+  }, [isAdmin]);
 
   const hidden = pathname.startsWith("/login") || pathname.startsWith("/auth") || pathname.startsWith("/pending");
   if (hidden) return null;
@@ -104,7 +125,7 @@ export function Sidebar() {
       >
         <div className={cn("flex items-center gap-3", collapsed && "justify-center")}>
           <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-sidebar-border bg-background/70 shadow-[var(--shadow-xs)]">
-            <Image src="/v4-symbol.png" alt="V4" width={30} height={30} className="h-[30px] w-[30px] object-contain" />
+            <Image src="/v4-brand-symbol.png" alt="V4" width={30} height={30} className="h-[30px] w-[30px] object-contain" />
           </div>
           {!collapsed ? (
             <div className="flex flex-col justify-center leading-none">
@@ -128,27 +149,38 @@ export function Sidebar() {
         </button>
       </div>
 
-      <nav className="mt-5 flex flex-1 flex-col gap-1.5">
-        {links.map(({ href, label, icon: Icon }) => {
-          const active = pathname === href || (href !== "/" && pathname.startsWith(href));
-          return (
-            <Link
-              key={href}
-              href={href}
-              title={collapsed ? label : undefined}
-              className={cn(
-                "group relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all",
-                collapsed ? "justify-center" : "",
-                active
-                  ? "bg-primary/12 text-foreground ring-1 ring-primary/18"
-                  : "text-sidebar-foreground/80 hover:bg-sidebar-accent/70 hover:text-foreground",
-              )}
-            >
-              <Icon className="h-[18px] w-[18px] shrink-0" />
-              {!collapsed ? <span>{label}</span> : null}
-            </Link>
-          );
-        })}
+      <nav className="mt-5 flex flex-1 flex-col gap-4 overflow-y-auto">
+        {allGroups.map((group) => (
+          <div key={group.label} className="flex flex-col gap-0.5">
+            {!collapsed ? (
+              <p className="mb-1 px-3 text-[9px] font-bold uppercase tracking-[0.28em] text-muted-foreground/55">
+                {group.label}
+              </p>
+            ) : (
+              <div className="mx-auto mb-1 h-px w-6 bg-sidebar-border" />
+            )}
+            {group.links.map(({ href, label, icon: Icon }) => {
+              const active = pathname === href || (href !== "/" && pathname.startsWith(href));
+              return (
+                <Link
+                  key={href}
+                  href={href}
+                  title={collapsed ? label : undefined}
+                  className={cn(
+                    "group relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all",
+                    collapsed ? "justify-center" : "",
+                    active
+                      ? "bg-primary text-white shadow-[0_2px_8px_rgba(234,59,23,0.35)]"
+                      : "text-sidebar-foreground/70 hover:bg-sidebar-accent/70 hover:text-sidebar-foreground",
+                  )}
+                >
+                  <Icon className="h-[18px] w-[18px] shrink-0" />
+                  {!collapsed ? <span>{label}</span> : null}
+                </Link>
+              );
+            })}
+          </div>
+        ))}
       </nav>
 
       <div className="space-y-3 border-t border-sidebar-border pt-4">
