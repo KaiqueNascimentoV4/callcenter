@@ -556,10 +556,52 @@ app.get("/agents/:id/voice-preview", async (req, res) => {
         "Preview de voz indisponível. Verifique GEMINI_API_KEY e o modelo; tente gemini-2.0-flash no agente.",
     });
   }
-  const buf = Buffer.from(sample.base64, "base64");
-  const ct = sample.mimeType?.split(";")[0]?.trim() || "audio/L16";
-  res.setHeader("Content-Type", ct);
-  res.send(buf);
+  const raw = Buffer.from(sample.base64, "base64");
+  const mime = (sample.mimeType || "").trim();
+  const ct = mime.split(";")[0]?.trim() || "audio/L16";
+
+  function parseRate(m) {
+    // ex.: audio/pcm;rate=24000
+    const match = m.match(/rate\s*=\s*(\d+)/i);
+    const rate = match ? Number(match[1]) : NaN;
+    return Number.isFinite(rate) ? rate : 24000;
+  }
+
+  function pcm16leToWav(pcmBuf, sampleRate, channels = 1) {
+    const bitsPerSample = 16;
+    const blockAlign = (channels * bitsPerSample) / 8;
+    const byteRate = sampleRate * blockAlign;
+    const dataSize = pcmBuf.length;
+
+    const header = Buffer.alloc(44);
+    header.write("RIFF", 0);
+    header.writeUInt32LE(36 + dataSize, 4);
+    header.write("WAVE", 8);
+    header.write("fmt ", 12);
+    header.writeUInt32LE(16, 16); // PCM fmt chunk size
+    header.writeUInt16LE(1, 20); // PCM format
+    header.writeUInt16LE(channels, 22);
+    header.writeUInt32LE(sampleRate, 24);
+    header.writeUInt32LE(byteRate, 28);
+    header.writeUInt16LE(blockAlign, 32);
+    header.writeUInt16LE(bitsPerSample, 34);
+    header.write("data", 36);
+    header.writeUInt32LE(dataSize, 40);
+    return Buffer.concat([header, pcmBuf]);
+  }
+
+  // Browsers geralmente não tocam audio/L16 ou audio/pcm “cru” — convertemos para WAV.
+  const needsWav =
+    ct.toLowerCase() === "audio/l16" ||
+    ct.toLowerCase() === "audio/pcm" ||
+    mime.toLowerCase().startsWith("audio/pcm");
+
+  const outBuf = needsWav ? pcm16leToWav(raw, parseRate(mime)) : raw;
+  const outCt = needsWav ? "audio/wav" : ct;
+
+  res.setHeader("Content-Type", outCt);
+  res.setHeader("Cache-Control", "no-store");
+  res.send(outBuf);
 });
 
 app.get("/agents/:id", async (req, res) => {
