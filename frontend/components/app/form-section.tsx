@@ -20,7 +20,7 @@ export function FormSection({ title, description, aside, children }: FormSection
           {aside}
         </div>
       </CardHeader>
-      <CardContent className="p-5">{children}</CardContent>
+      <CardContent className="p-4">{children}</CardContent>
     </Card>
   );
 }

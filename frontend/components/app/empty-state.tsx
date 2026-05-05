@@ -15,7 +15,7 @@ export function EmptyState({ icon: Icon, title, description, actionLabel, onActi
     <Card className="border-dashed border-border bg-card/80 shadow-sm">
       <CardContent className="flex flex-col items-start gap-4 p-8 lg:p-10">
         {Icon ? (
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 text-primary">
             <Icon className="h-5 w-5" />
           </div>
         ) : null}

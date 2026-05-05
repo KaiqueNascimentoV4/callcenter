@@ -69,49 +69,36 @@ export function Sidebar() {
 
   return (
     <motion.aside
-      animate={{ width: collapsed ? 84 : 286 }}
+      animate={{ width: collapsed ? 80 : 272 }}
       transition={{ type: "spring", stiffness: 260, damping: 26 }}
-      className="sticky top-0 hidden h-screen shrink-0 border-r border-sidebar-border bg-sidebar/95 px-3 py-4 shadow-[var(--shadow-sm)] backdrop-blur lg:flex lg:flex-col"
+      className="sticky top-0 hidden h-screen shrink-0 border-r border-sidebar-border bg-sidebar/92 px-3 py-4 shadow-[var(--shadow-sm)] backdrop-blur lg:flex lg:flex-col"
     >
-      <div className={cn("flex flex-col items-center gap-4 rounded-[28px] border border-sidebar-border bg-sidebar-accent/50 px-3 py-4", collapsed ? "px-2" : "px-4")}>
-        <div className="flex w-full items-center justify-between">
-          <div className={cn("flex items-center gap-3", collapsed && "justify-center")}>
-            <Image src="/v4-logo.webp" alt="V4" width={44} height={44} className="h-11 w-11 rounded-2xl object-cover shadow-[var(--shadow-xs)]" />
-            {!collapsed ? (
-              <div className="space-y-0.5">
-                <p className="text-[11px] uppercase tracking-[0.28em] text-muted-foreground">V4</p>
-                <p className="text-lg font-semibold tracking-[0.24em] text-foreground">CALL</p>
-              </div>
-            ) : null}
-          </div>
+      <div className={cn("flex items-center justify-between rounded-xl border border-sidebar-border bg-sidebar-accent/45 px-3 py-2.5", collapsed ? "px-2" : "px-3")}>
+        <div className={cn("flex items-center gap-3", collapsed && "justify-center")}>
+          <Image src="/v4-logo.webp" alt="V4" width={40} height={40} className="h-10 w-10 rounded-xl object-cover shadow-[var(--shadow-xs)]" />
           {!collapsed ? (
-            <button
-              type="button"
-              onClick={() => {
-                localStorage.setItem("sidebar-collapsed", "true");
-                setCollapsed(true);
-              }}
-              className="rounded-xl border border-sidebar-border bg-background/70 p-2 text-muted-foreground transition hover:text-foreground"
-            >
-              <PanelLeftClose className="h-4 w-4" />
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={() => {
-                localStorage.setItem("sidebar-collapsed", "false");
-                setCollapsed(false);
-              }}
-              className="rounded-xl border border-sidebar-border bg-background/70 p-2 text-muted-foreground transition hover:text-foreground"
-            >
-              <PanelLeftOpen className="h-4 w-4" />
-            </button>
-          )}
+            <div className="leading-tight">
+              <p className="text-xs font-semibold tracking-tight text-foreground">V4 Call</p>
+              <p className="text-[12px] text-muted-foreground">Operações</p>
+            </div>
+          ) : null}
         </div>
-        {!collapsed ? <p className="text-center text-xs leading-5 text-muted-foreground">Central de operações para agentes, leads, campanhas e resultados com IA.</p> : null}
+
+        <button
+          type="button"
+          aria-label={collapsed ? "Expandir sidebar" : "Recolher sidebar"}
+          onClick={() => {
+            const next = !collapsed;
+            localStorage.setItem("sidebar-collapsed", String(next));
+            setCollapsed(next);
+          }}
+          className="rounded-xl border border-sidebar-border bg-background/60 p-2 text-muted-foreground transition hover:text-foreground"
+        >
+          {collapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
+        </button>
       </div>
 
-      <nav className="mt-6 flex flex-1 flex-col gap-1.5">
+      <nav className="mt-5 flex flex-1 flex-col gap-1.5">
         {links.map(({ href, label, icon: Icon }) => {
           const active = pathname === href || (href !== "/" && pathname.startsWith(href));
           return (
@@ -120,12 +107,14 @@ export function Sidebar() {
               href={href}
               title={collapsed ? label : undefined}
               className={cn(
-                "group relative flex items-center gap-3 rounded-2xl px-3 py-3 text-sm font-medium transition-all",
+                "group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all",
                 collapsed ? "justify-center" : "",
-                active ? "bg-primary text-primary-foreground shadow-[var(--shadow-xs)]" : "text-sidebar-foreground/78 hover:bg-sidebar-accent hover:text-foreground",
+                active
+                  ? "bg-primary/10 text-foreground ring-1 ring-primary/20"
+                  : "text-sidebar-foreground/80 hover:bg-sidebar-accent/70 hover:text-foreground",
               )}
             >
-              <Icon className="h-4 w-4 shrink-0" />
+              <Icon className="h-[18px] w-[18px] shrink-0" />
               {!collapsed ? <span>{label}</span> : null}
             </Link>
           );
@@ -137,17 +126,17 @@ export function Sidebar() {
           type="button"
           onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
           className={cn(
-            "flex w-full items-center gap-3 rounded-2xl border border-sidebar-border bg-sidebar-accent/60 px-3 py-3 text-sm text-sidebar-foreground/80 transition hover:text-foreground",
+            "flex w-full items-center gap-3 rounded-xl border border-sidebar-border bg-sidebar-accent/50 px-3 py-2.5 text-sm text-sidebar-foreground/80 transition hover:text-foreground",
             collapsed && "justify-center",
           )}
         >
-          {resolvedTheme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+          {resolvedTheme === "dark" ? <Sun className="h-[18px] w-[18px]" /> : <Moon className="h-[18px] w-[18px]" />}
           {!collapsed ? <span>{resolvedTheme === "dark" ? "Modo claro" : "Modo escuro"}</span> : null}
         </button>
 
-        <div className={cn("rounded-[26px] border border-sidebar-border bg-sidebar-accent/50 p-3", collapsed ? "px-2" : "px-3")}>
+        <div className={cn("rounded-xl border border-sidebar-border bg-sidebar-accent/40 p-3", collapsed ? "px-2" : "px-3")}>
           <div className={cn("flex items-center gap-3", collapsed && "justify-center")}>
-            <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-2xl bg-primary/15 text-sm font-semibold text-primary">
+            <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl bg-primary/12 text-sm font-semibold text-primary">
               {user?.avatar ? <Image src={user.avatar} alt={user.name ?? "Usuário"} width={44} height={44} className="h-full w-full object-cover" unoptimized /> : initials}
             </div>
             {!collapsed ? (
@@ -161,7 +150,7 @@ export function Sidebar() {
                 type="button"
                 onClick={() => void signOut()}
                 disabled={signingOut}
-                className="rounded-xl border border-sidebar-border bg-background/70 p-2 text-muted-foreground transition hover:text-foreground disabled:opacity-50"
+                className="rounded-xl border border-sidebar-border bg-background/60 p-2 text-muted-foreground transition hover:text-foreground disabled:opacity-50"
               >
                 <LogOut className="h-4 w-4" />
               </button>
@@ -172,7 +161,7 @@ export function Sidebar() {
               type="button"
               onClick={() => void signOut()}
               disabled={signingOut}
-              className="mt-3 flex w-full items-center justify-center rounded-xl border border-sidebar-border bg-background/70 p-2 text-muted-foreground transition hover:text-foreground disabled:opacity-50"
+              className="mt-3 flex w-full items-center justify-center rounded-xl border border-sidebar-border bg-background/60 p-2 text-muted-foreground transition hover:text-foreground disabled:opacity-50"
             >
               <LogOut className="h-4 w-4" />
             </button>

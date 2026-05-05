@@ -172,7 +172,8 @@ async function dispatchLeadWithAgent({ agent, body, fallbackPhonePath }) {
     deteccaoVoicemail: agentCfg.deteccao_voicemail,
   });
 
-  return { lead, call, agentCfg };
+  // `buildDispatchResponse` precisa do `agent` para devolver agentId.
+  return { lead, call, agent, agentCfg };
 }
 
 async function buildFinalWebhookPayload({ callSid, leadId, agentId, resultArgs }) {

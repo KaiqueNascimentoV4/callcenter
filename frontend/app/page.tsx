@@ -107,7 +107,7 @@ function DashboardContent() {
       </section>
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
-        <Card className="border-border bg-card shadow-sm">
+        <Card>
           <CardHeader>
             <CardTitle className="text-base text-foreground">Evolução diária</CardTitle>
           </CardHeader>
@@ -127,7 +127,7 @@ function DashboardContent() {
           </CardContent>
         </Card>
 
-        <Card className="border-border bg-card shadow-sm">
+        <Card>
           <CardHeader>
             <CardTitle className="text-base text-foreground">
               {agentId === "all" ? "Ranking por agente" : "Volume do agente selecionado"}
@@ -155,42 +155,46 @@ function DashboardContent() {
         </Card>
       </div>
 
-      <Card className="border-border bg-card shadow-sm">
+      <Card>
         <CardHeader>
           <CardTitle className="text-base text-foreground">Ligações recentes</CardTitle>
         </CardHeader>
-        <CardContent className="overflow-x-auto">
-          <table className="min-w-full text-sm">
-            <thead>
-              <tr className="border-b border-border text-left text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
-                <th className="pb-3 font-medium">Lead</th>
-                <th className="pb-3 font-medium">Agente</th>
-                <th className="pb-3 font-medium">Interesse</th>
-                <th className="pb-3 font-medium">Próxima ação</th>
-                <th className="pb-3 font-medium">Data</th>
-              </tr>
-            </thead>
-            <tbody>
-              {recent?.data?.map((result) => (
-                <tr key={result.id} className="border-b border-border last:border-b-0">
-                  <td className="py-3 text-foreground">{result.leads?.nome ?? result.lead_id}</td>
-                  <td className="py-3 text-muted-foreground">{result.agents?.nome ?? "—"}</td>
-                  <td className="py-3">
-                    <Badge variant="outline" className={interesseBadge(result.interesse)}>
-                      {result.interesse}
-                    </Badge>
-                  </td>
-                  <td className="py-3 text-muted-foreground">{proximo(result.proxima_acao)}</td>
-                  <td className="py-3 text-muted-foreground">{new Date(result.criado_em).toLocaleDateString("pt-BR")}</td>
+        <CardContent className="pt-1">
+          <div className="overflow-hidden rounded-xl border border-border">
+            <table className="min-w-full text-sm">
+              <thead className="bg-muted/40">
+                <tr className="border-b border-border text-left text-[11px] uppercase tracking-wide text-muted-foreground">
+                  <th className="px-4 py-3 font-semibold">Lead</th>
+                  <th className="px-4 py-3 font-semibold">Agente</th>
+                  <th className="px-4 py-3 font-semibold">Interesse</th>
+                  <th className="px-4 py-3 font-semibold">Próxima ação</th>
+                  <th className="px-4 py-3 font-semibold">Data</th>
                 </tr>
-              ))}
-              {!recent?.data?.length ? (
-                <tr>
-                  <td colSpan={5} className="py-10 text-center text-sm text-muted-foreground">Nenhuma ligação registrada ainda.</td>
-                </tr>
-              ) : null}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {recent?.data?.map((result) => (
+                  <tr key={result.id} className="border-b border-border/70 last:border-b-0 hover:bg-muted/20">
+                    <td className="px-4 py-3 text-foreground">{result.leads?.nome ?? result.lead_id}</td>
+                    <td className="px-4 py-3 text-muted-foreground">{result.agents?.nome ?? "—"}</td>
+                    <td className="px-4 py-3">
+                      <Badge variant="outline" className={interesseBadge(result.interesse)}>
+                        {result.interesse}
+                      </Badge>
+                    </td>
+                    <td className="px-4 py-3 text-muted-foreground">{proximo(result.proxima_acao)}</td>
+                    <td className="px-4 py-3 text-muted-foreground">{new Date(result.criado_em).toLocaleDateString("pt-BR")}</td>
+                  </tr>
+                ))}
+                {!recent?.data?.length ? (
+                  <tr>
+                    <td colSpan={5} className="px-4 py-10 text-center text-sm text-muted-foreground">
+                      Nenhuma ligação registrada ainda.
+                    </td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
+          </div>
         </CardContent>
       </Card>
     </div>
@@ -199,7 +203,7 @@ function DashboardContent() {
 
 export default function DashboardPage() {
   return (
-    <Suspense fallback={<div className="page-shell"><div className="h-96 animate-pulse rounded-3xl border border-border bg-card" /></div>}>
+    <Suspense fallback={<div className="page-shell"><div className="h-96 animate-pulse rounded-xl border border-border bg-card" /></div>}>
       <DashboardContent />
     </Suspense>
   );

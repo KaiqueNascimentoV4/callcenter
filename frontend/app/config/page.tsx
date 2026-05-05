@@ -37,7 +37,7 @@ export default function ConfigPage() {
   });
 
   if (isLoading) {
-    return <div className="page-shell"><div className="h-96 animate-pulse rounded-3xl border border-border bg-card" /></div>;
+    return <div className="page-shell"><div className="h-96 animate-pulse rounded-xl border border-border bg-card" /></div>;
   }
 
   return (

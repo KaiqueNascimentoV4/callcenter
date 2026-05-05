@@ -102,7 +102,7 @@ export default function AgentsPage() {
       </section>
 
       <div className="grid gap-6 2xl:grid-cols-[minmax(0,1fr)_320px]">
-        <Card className="border-border bg-card shadow-sm">
+        <Card>
           <CardHeader className="gap-4 border-b border-border/70 pb-5">
             <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
               <div>
@@ -153,20 +153,21 @@ export default function AgentsPage() {
                 />
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="min-w-full text-sm">
-                  <thead className="bg-muted/30">
-                    <tr className="text-left text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
-                      <th className="px-5 py-4 font-medium">Agente</th>
-                      <th className="px-5 py-4 font-medium">Empresa</th>
-                      <th className="px-5 py-4 font-medium">Voz</th>
-                      <th className="px-5 py-4 font-medium">Modelo</th>
-                      <th className="px-5 py-4 font-medium">Status</th>
-                      <th className="px-5 py-4 font-medium">Performance</th>
-                      <th className="px-5 py-4 font-medium text-right">Ações</th>
-                    </tr>
-                  </thead>
-                  <tbody>
+              <div className="overflow-hidden rounded-xl border border-border">
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-sm">
+                    <thead className="bg-muted/40">
+                      <tr className="text-left text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                        <th className="px-4 py-3">Agente</th>
+                        <th className="px-4 py-3">Empresa</th>
+                        <th className="px-4 py-3">Voz</th>
+                        <th className="px-4 py-3">Modelo</th>
+                        <th className="px-4 py-3">Status</th>
+                        <th className="px-4 py-3">Performance</th>
+                        <th className="px-4 py-3 text-right">Ações</th>
+                      </tr>
+                    </thead>
+                    <tbody>
                     {filteredAgents.map((agent) => {
                       const metrics = resultMap.get(agent.id) ?? { total: 0, high: 0 };
                       const publicBase = typeof window !== "undefined"
@@ -176,10 +177,10 @@ export default function AgentsPage() {
                         ? `${publicBase}/hooks/inbound/${agent.webhook_entrada_token}`
                         : "";
                       return (
-                        <tr key={agent.id} className="border-t border-border align-top">
-                          <td className="px-5 py-4">
+                        <tr key={agent.id} className="border-t border-border/70 align-top hover:bg-muted/20">
+                          <td className="px-4 py-3">
                             <div className="flex items-start gap-3">
-                              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary/10 font-semibold text-primary">
+                              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-sm font-semibold text-primary">
                                 {agent.nome?.slice(0, 1)?.toUpperCase() ?? "A"}
                               </div>
                               <div className="space-y-1">
@@ -188,19 +189,19 @@ export default function AgentsPage() {
                               </div>
                             </div>
                           </td>
-                          <td className="px-5 py-4 text-muted-foreground">{agent.empresa_nome ?? "—"}</td>
-                          <td className="px-5 py-4 text-muted-foreground">{agent.voz ?? "—"}</td>
-                          <td className="px-5 py-4">
+                          <td className="px-4 py-3 text-muted-foreground">{agent.empresa_nome ?? "—"}</td>
+                          <td className="px-4 py-3 text-muted-foreground">{agent.voz ?? "—"}</td>
+                          <td className="px-4 py-3">
                             <span className="inline-flex rounded-xl border border-border bg-muted/40 px-3 py-1 text-xs text-foreground">
                               {agent.modelo_gemini ?? "—"}
                             </span>
                           </td>
-                          <td className="px-5 py-4">
+                          <td className="px-4 py-3">
                             <Badge variant="outline" className={agent.ativo ? "border-green-500/40 text-green-500" : "border-border text-muted-foreground"}>
                               {agent.ativo ? "Ativo" : "Inativo"}
                             </Badge>
                           </td>
-                          <td className="px-5 py-4">
+                          <td className="px-4 py-3">
                             <div className="space-y-1">
                               <div className="flex items-center gap-2 text-foreground">
                                 <Activity className="h-4 w-4 text-primary" />
@@ -209,7 +210,7 @@ export default function AgentsPage() {
                               <p className="text-xs text-muted-foreground">{metrics.high} com alto interesse</p>
                             </div>
                           </td>
-                          <td className="px-5 py-4">
+                          <td className="px-4 py-3">
                             <div className="flex justify-end gap-2">
                               {dispatchUrl ? (
                                 <Button
@@ -232,15 +233,16 @@ export default function AgentsPage() {
                         </tr>
                       );
                     })}
-                  </tbody>
-                </table>
+                    </tbody>
+                  </table>
+                </div>
               </div>
             )}
           </CardContent>
         </Card>
 
         <div className="space-y-6">
-          <Card className="border-border bg-card shadow-sm">
+          <Card>
             <CardHeader>
               <CardTitle className="text-base text-foreground">Boas práticas</CardTitle>
             </CardHeader>
@@ -250,7 +252,7 @@ export default function AgentsPage() {
             </CardContent>
           </Card>
 
-          <Card className="border-border bg-card shadow-sm">
+          <Card>
             <CardHeader>
               <CardTitle className="text-base text-foreground">Atalhos</CardTitle>
             </CardHeader>

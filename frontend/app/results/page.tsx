@@ -59,10 +59,10 @@ export default function ResultsPage() {
 
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.1 }} className="flex gap-3 flex-wrap">
         <Select value={agentFilter} onValueChange={(v) => setAgentFilter(v ?? "all")}>
-          <SelectTrigger className="w-48 bg-card border-border text-foreground">
+          <SelectTrigger className="w-56">
             <SelectValue placeholder="Agente" />
           </SelectTrigger>
-          <SelectContent className="bg-accent border-border">
+          <SelectContent>
             <SelectItem value="all">Todos os agentes</SelectItem>
             {agentsList?.map((a) => (
               <SelectItem key={a.id} value={a.id}>
@@ -92,10 +92,10 @@ export default function ResultsPage() {
           },
         ].map(({ label, state, set, opts }) => (
           <Select key={label} value={state} onValueChange={set}>
-            <SelectTrigger className="w-44 bg-card border-border text-foreground">
+            <SelectTrigger className="w-52">
               <SelectValue placeholder={label} />
             </SelectTrigger>
-            <SelectContent className="bg-accent border-border">
+            <SelectContent>
               <SelectItem value="all">Todos ({label})</SelectItem>
               {opts.map((o) => (
                 <SelectItem key={o} value={o}>
@@ -111,13 +111,13 @@ export default function ResultsPage() {
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.15 }}
-        className="rounded-xl border border-border bg-card overflow-hidden"
+        className="overflow-hidden rounded-xl border border-border bg-card shadow-[var(--shadow-xs)]"
       >
         <table className="w-full text-sm">
-          <thead className="border-b border-border">
+          <thead className="border-b border-border bg-muted/40">
             <tr>
               {["Lead", "Agente", "Interesse", "Humor", "Próxima ação", "Resumo", "Data", ""].map((h) => (
-                <th key={h} className="text-left px-4 py-3 font-medium text-muted-foreground text-[11px] uppercase tracking-wide">
+                <th key={h} className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                   {h}
                 </th>
               ))}
@@ -230,7 +230,7 @@ export default function ResultsPage() {
                     {bubbles.map((t, i) => (
                       <div key={`${t.ts}-${i}`} className={`flex ${t.role === "agent" ? "justify-start" : "justify-end"}`}>
                         <div
-                          className={`rounded-2xl px-3 py-2 max-w-[85%] text-sm ${
+                          className={`rounded-xl px-3 py-2 max-w-[85%] text-sm ${
                             t.role === "agent"
                               ? "bg-[#ff4400]/10 text-[#ffaa88] border border-[#ff4400]/20"
                               : "bg-muted text-foreground border border-border"

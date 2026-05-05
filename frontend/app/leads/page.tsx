@@ -123,19 +123,23 @@ export default function LeadsPage() {
         />
       </motion.div>
 
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.1 }} className="flex gap-3">
-        <Input placeholder="Buscar por nome, empresa ou telefone…" value={search}
-          onChange={e => setSearch(e.target.value)} className="max-w-xs bg-card border-border text-foreground placeholder:text-muted-foreground" />
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.1 }} className="flex flex-wrap gap-3">
+        <Input
+          placeholder="Buscar por nome, empresa ou telefone…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="w-full sm:max-w-sm"
+        />
         <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v ?? "all")}>
-          <SelectTrigger className="w-44 bg-card border-border text-foreground"><SelectValue /></SelectTrigger>
-          <SelectContent className="bg-accent border-border">
+          <SelectTrigger className="w-52"><SelectValue /></SelectTrigger>
+          <SelectContent>
             <SelectItem value="all">Todos os status</SelectItem>
             {Object.entries(STATUS_LABELS).map(([v, l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}
           </SelectContent>
         </Select>
         <Select value={agentFilter} onValueChange={(v) => setAgentFilter(v ?? "all")}>
-          <SelectTrigger className="w-48 bg-card border-border text-foreground"><SelectValue placeholder="Agente" /></SelectTrigger>
-          <SelectContent className="bg-accent border-border">
+          <SelectTrigger className="w-60"><SelectValue placeholder="Agente" /></SelectTrigger>
+          <SelectContent>
             <SelectItem value="all">Todos os agentes</SelectItem>
             {agentsList?.map((a) => (
               <SelectItem key={a.id} value={a.id}>
@@ -147,13 +151,13 @@ export default function LeadsPage() {
       </motion.div>
 
       <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}
-        className="rounded-xl border border-border bg-card overflow-hidden"
+        className="overflow-hidden rounded-xl border border-border bg-card shadow-[var(--shadow-xs)]"
       >
         <table className="w-full text-sm">
-          <thead className="border-b border-border">
+          <thead className="border-b border-border bg-muted/40">
             <tr>
               {["Nome", "Empresa", "Telefone", "Agente", "Status", "Tentativas", ""].map((h) => (
-                <th key={h} className="text-left px-4 py-3 font-medium text-muted-foreground text-[11px] uppercase tracking-wide">{h}</th>
+                <th key={h} className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{h}</th>
               ))}
             </tr>
           </thead>
@@ -163,7 +167,7 @@ export default function LeadsPage() {
             ) : data?.data?.length === 0 ? (
               <tr><td colSpan={7} className="text-center py-12 text-muted-foreground">Nenhum lead encontrado</td></tr>
             ) : data?.data?.map((lead) => (
-              <tr key={lead.id} className="border-b border-border last:border-0 hover:bg-accent transition-colors">
+              <tr key={lead.id} className="border-b border-border/70 last:border-0 hover:bg-muted/20 transition-colors">
                 <td className="px-4 py-3 font-medium text-foreground">{lead.nome}</td>
                 <td className="px-4 py-3 text-muted-foreground">{lead.empresa ?? "—"}</td>
                 <td className="px-4 py-3 text-muted-foreground">{lead.telefone}</td>
@@ -179,7 +183,7 @@ export default function LeadsPage() {
                       <Phone className="w-3.5 h-3.5 text-green-500" />
                     </Button>
                     <Button size="icon" variant="ghost" onClick={() => { setForm(lead); setOpenForm(true); }}
-                      className="w-8 h-8 hover:bg-accent">
+                      className="w-8 h-8">
                       <Pencil className="w-3.5 h-3.5 text-muted-foreground" />
                     </Button>
                     <Button size="icon" variant="ghost" onClick={() => remove.mutate(lead.id)}
@@ -187,7 +191,7 @@ export default function LeadsPage() {
                       <Trash2 className="w-3.5 h-3.5 text-red-500" />
                     </Button>
                     <Button size="icon" variant="ghost" onClick={() => setSelectedLead(lead.id)}
-                      className="w-8 h-8 hover:bg-accent">
+                      className="w-8 h-8">
                       <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />
                     </Button>
                   </div>
